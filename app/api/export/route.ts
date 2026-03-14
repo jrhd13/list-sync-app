@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type'); // This looks for ?type=movie or ?type=tv
+  const type = searchParams.get('type');
 
   try {
     let query = supabase
@@ -13,7 +13,6 @@ export async function GET(request: Request) {
       .select('imdb_id, title, media_type')
       .not('imdb_id', 'is', null);
 
-    // Filter based on what the server (Radarr/Sonarr) asks for
     if (type === 'movie') {
       query = query.eq('media_type', 'movie');
     } else if (type === 'tv') {
@@ -24,7 +23,14 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json(data);
+    // We map the data so it uses the exact keys Radarr/Sonarr look for
+    const formattedData = data.map(item => ({
+      title: item.title,
+      imdbId: item.imdb_id, // Radarr often looks for 'imdbId' (CamelCase)
+      type: item.media_type
+    }));
+
+    return NextResponse.json(formattedData);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
