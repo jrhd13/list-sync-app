@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   try {
     let query = supabase
       .from('saved_items')
-      .select('imdb_id, title, media_type')
+      .select('*') // Get everything
       .not('imdb_id', 'is', null);
 
     if (type === 'movie') {
@@ -20,14 +20,15 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await query;
-
     if (error) throw error;
 
-    // We map the data so it uses the exact keys Radarr/Sonarr look for
+    // This format is the "Golden Standard" for Radarr Custom Lists
     const formattedData = data.map(item => ({
       title: item.title,
-      imdbId: item.imdb_id, // Radarr often looks for 'imdbId' (CamelCase)
-      type: item.media_type
+      imdbId: item.imdb_id,
+      imdb_id: item.imdb_id,
+      tmdbId: item.tmdb_id,
+      itemType: item.media_type === 'movie' ? 'movie' : 'show'
     }));
 
     return NextResponse.json(formattedData);
