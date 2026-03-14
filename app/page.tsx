@@ -79,11 +79,21 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8 bg-gray-900 text-white font-sans">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 uppercase tracking-tighter">List Sync</h1>
-        <a href="/my-list" className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2">
-          <span>📂</span> My Library
-        </a>
-      </div>
+  <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+    MediaFlow
+  </h1>
+  
+  <div className="flex gap-2">
+    {/* ADD THIS LINK HERE */}
+    <a href="/settings" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm transition border border-gray-700">
+      <span>⚙️</span> Groups
+    </a>
+
+    <a href="/my-list" className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-bold text-sm transition">
+      <span>📂</span> My Library
+    </a>
+  </div>
+</div>
       
       <div className="flex flex-wrap gap-4 mb-6 items-center bg-gray-800/50 p-4 rounded-2xl border border-gray-700">
         <button onClick={() => { setService(""); fetchDiscovery("trending"); }} className={`px-4 py-2 rounded-xl text-sm font-bold ${view === 'trending' && !service ? 'bg-blue-600' : 'bg-gray-800'}`}>🔥 Trending</button>
