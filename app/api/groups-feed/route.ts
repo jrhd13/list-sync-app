@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -18,28 +19,28 @@ export async function GET(request: Request) {
     const { data: dbGroups } = await supabase.from('release_groups').select('name').eq('is_active', true);
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
 
-    // Fetch from BOTH Geek and Planet
     const urls = [
       `https://api.nzbgeek.info/api?t=search&cat=${cat}&apikey=${process.env.NZBGEEK_API_KEY}&o=json`,
       `https://nzbplanet.net/api?t=search&cat=${cat}&apikey=${process.env.NZBPLANET_API_KEY}&o=json`
     ];
 
-    const results = await Promise.all(urls.map(url => fetch(url).then(res => res.json()).catch(() => ({ channel: { item: [] } }))));
+    const results = await Promise.all(urls.map(url => 
+      fetch(url).then(res => res.json()).catch(() => ({ channel: { item: [] } }))
+    ));
+    
     let items = results.flatMap(data => data.channel?.item || []);
     
     let filteredItems = items.filter((item: any) => 
       groupList.length > 0 && groupList.some(group => item.title.toUpperCase().includes(`-${group}`))
     );
 
-    // If empty, create a "Beefier" Dummy Item
+    // FIX: If empty, show the FIRST 3 results from Geek anyway, 
+    // but label them so you know they are "Unfiltered"
     if (filteredItems.length === 0) {
-      filteredItems = [{
-        title: `MediaFlow.Elite.Quality.Test.S01E01-ELITE`,
-        link: 'https://nzbgeek.info',
-        guid: 'test-' + Date.now(),
-        pubDate: new Date().toUTCString(),
-        size: "2147483648" // 2GB
-      }];
+      filteredItems = items.slice(0, 3).map((item: any) => ({
+        ...item,
+        title: `[UNFILTERED] ${item.title}`
+      }));
     }
 
     const rssItems = filteredItems.map((item: any) => `
@@ -50,14 +51,12 @@ export async function GET(request: Request) {
         <pubDate>${item.pubDate}</pubDate>
         <enclosure url="${item.link}" length="${item.size || '0'}" type="application/x-nzb" />
         <newznab:attr name="category" value="${cat}" />
-        <newznab:attr name="size" value="${item.size || '2147483648'}" />
       </item>`).join('');
 
     const rssFeed = `<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
       <channel>
         <title>MediaFlow</title>
-        <description>Elite RSS Feed</description>
         ${rssItems}
       </channel>
     </rss>`.trim();
