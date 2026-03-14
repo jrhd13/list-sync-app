@@ -19,7 +19,7 @@ const SERVICES = [
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<any[]>([]);;
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("trending");
   const [service, setService] = useState("");

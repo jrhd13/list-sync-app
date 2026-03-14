@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function MyList() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<any[]>([]);;
   const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
