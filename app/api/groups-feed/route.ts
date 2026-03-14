@@ -5,14 +5,18 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  
+  const mode = searchParams.get('t') || searchParams.get('mode');
+  
+  // If no type is provided, default to 'movie'
   const type = searchParams.get('type') || 'movie';
-  const mode = searchParams.get('t');
 
-  // Handle CAPS check with zero whitespace
+  // 1. Handle Radarr's "Capabilities" check 
   if (mode === 'caps') {
     const capsXml = `<?xml version="1.0" encoding="UTF-8"?><caps><searching><search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>`.trim();
     return new NextResponse(capsXml, { headers: { 'Content-Type': 'application/xml' } });
   }
+  
 
   try {
     const { data: dbGroups } = await supabase.from('release_groups').select('name').eq('is_active', true);
