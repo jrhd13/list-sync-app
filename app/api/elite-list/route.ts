@@ -23,11 +23,13 @@ export async function GET(request: Request) {
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
 
     const endpoints = [];
-    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=movie&cat=2000&limit=50&apikey=${keys.geek}&o=json` });
-    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=movie&cat=2000&limit=50&apikey=${keys.planet}&o=json` });
-    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=movie&cat=2000&limit=50&apikey=${keys.althub}&o=json` });
-    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=movie&cat=2000&limit=50&apikey=${keys.scene}&o=json` });
-    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=movie&cat=2000&limit=50&apikey=${keys.carnage}&o=json` });
+   const groupQuery = groupList.join(','); 
+
+    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=2000,2010,2030,2035,2050,2060&limit=200&apikey=${keys.geek}&o=json` });
+    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=2000,2010,2030,2035,2050,2060&limit=200&apikey=${keys.planet}&o=json` });
+    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=2000,2010,2030,2035,2050,2060&limit=200&apikey=${keys.althub}&o=json` });
+    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=2000,2010,2030,2035,2050,2060&limit=120&apikey=${keys.scene}&o=json` });
+    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=search&cat=2000,2010,2030,2035,2050,2060&limit=200&apikey=${keys.carnage}&o=json` });
 
     if (endpoints.length === 0 && debug) {
       return NextResponse.json({ 
