@@ -1,69 +1,102 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
-export default function MediaFlowList() {
-  const [items, setItems] = useState<{ title: string; imdbId: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function SettingsPage() {
+  const [groups, setGroups] = useState<{ name: string }[]>([]);
+  const [newGroup, setNewGroup] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    fetch('/api/elite-list')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setItems(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchGroups();
   }, []);
+
+  const fetchGroups = async () => {
+    const { data } = await supabase.from('release_groups').select('name');
+    if (data) setGroups(data);
+  };
+
+  const addGroup = async () => {
+    if (!newGroup) return;
+    setSyncing(true);
+    await supabase.from('release_groups').insert([{ name: newGroup.toUpperCase() }]);
+    setNewGroup('');
+    await fetchGroups();
+    await fetch('/api/elite-list?force=true');
+    setSyncing(false);
+  };
+
+  const deleteGroup = async (name: string) => {
+    await supabase.from('release_groups').delete().eq('name', name);
+    fetchGroups();
+    fetch('/api/elite-list?force=true');
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0f1a] text-white p-6 font-sans">
       <div className="max-w-2xl mx-auto">
         
-        {/* Header Section */}
+        {/* Header with THE BACK BUTTON */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#00f2fe] to-[#4facfe] bg-clip-text text-transparent">
+          <Link href="/" className="flex items-center gap-2 text-[#00f2fe] hover:text-[#4facfe] transition-colors font-bold uppercase text-xs tracking-widest">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            Back to Feed
+          </Link>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-[#00f2fe] to-[#4facfe] bg-clip-text text-transparent">
             MediaFlow
           </h1>
-          <Link href="/settings" className="bg-[#1f2937] hover:bg-[#374151] text-gray-200 px-4 py-2 rounded-lg text-sm border border-gray-700 transition-all">
-            Settings
-          </Link>
         </div>
 
-        {/* List Content */}
-        <div className="space-y-4">
-          {loading ? (
-            <div className="text-center py-20 animate-pulse text-gray-500 uppercase tracking-widest text-sm">
-              Scanning Indexers...
-            </div>
-          ) : items.length === 0 ? (
-            <div className="bg-[#111827] border border-gray-800 rounded-xl p-12 text-center">
-              <p className="text-gray-400">No elite releases found in the current pool.</p>
-              <p className="text-xs text-gray-600 mt-2 uppercase">Checks Geek, Planet, AltHub, Scene</p>
-            </div>
-          ) : (
-            items.map((item, i) => (
-              <div key={i} className="bg-[#111827] border border-gray-800 p-4 rounded-xl hover:border-[#00f2fe]/50 transition-colors group">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-medium text-gray-100 group-hover:text-[#00f2fe] transition-colors">
-                    {item.title}
-                  </h3>
-                  <span className="text-[10px] bg-[#1f2937] text-gray-400 px-2 py-1 rounded uppercase font-bold ml-4">
-                    {item.imdbId}
-                  </span>
-                </div>
+        <div className="bg-[#111827] border border-gray-800 rounded-2xl p-6 shadow-2xl">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-100">Group Management</h2>
+            <p className="text-xs text-gray-500 mt-1 uppercase tracking-tighter">Edit your elite group filters</p>
+          </div>
+          
+          {/* Input Area */}
+          <div className="flex gap-2 mb-8 bg-[#0a0f1a] p-2 rounded-xl border border-gray-800">
+            <input 
+              value={newGroup} 
+              onChange={(e) => setNewGroup(e.target.value)}
+              placeholder="Enter Group Name..."
+              className="flex-1 bg-transparent px-4 py-2 text-sm focus:outline-none"
+              onKeyDown={(e) => e.key === 'Enter' && addGroup()}
+            />
+            <button 
+              onClick={addGroup}
+              className="bg-gradient-to-r from-[#00f2fe] to-[#4facfe] text-[#0a0f1a] font-bold py-2 px-6 rounded-lg transition-all active:scale-95 text-xs uppercase"
+            >
+              {syncing ? '...' : 'Add'}
+            </button>
+          </div>
+
+          {/* Group List */}
+          <div className="grid grid-cols-1 gap-2">
+            {groups.length === 0 ? (
+              <div className="text-center py-10 border-2 border-dashed border-gray-800 rounded-xl">
+                 <p className="text-gray-600 text-sm italic">No groups in your filter.</p>
               </div>
-            ))
-          )}
+            ) : (
+              groups.map((g, i) => (
+                <div key={i} className="flex justify-between items-center bg-[#1f2937]/50 p-4 rounded-xl border border-gray-800 group hover:border-[#00f2fe]/30 transition-colors">
+                  <span className="font-mono text-gray-200 tracking-wider uppercase">{g.name}</span>
+                  <button 
+                    onClick={() => deleteGroup(g.name)}
+                    className="text-gray-600 hover:text-red-500 transition-colors p-1"
+                    title="Delete Group"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Footer Info */}
-        <footer className="mt-12 text-center">
-          <div className="inline-block h-1 w-12 bg-gradient-to-r from-[#00f2fe] to-[#4facfe] rounded-full mb-4"></div>
-          <p className="text-[10px] text-gray-600 uppercase tracking-[0.2em]">
-            Syncing Live with Radarr
-          </p>
+        <footer className="mt-8 text-center text-[9px] text-gray-700 uppercase tracking-[0.5em]">
+          Production Environment
         </footer>
       </div>
     </div>
