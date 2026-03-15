@@ -3,66 +3,49 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const debug = searchParams.get('debug') === 'true';
+
   try {
-    // 1. Get Elite Groups from Supabase
     const { data: dbGroups } = await supabase.from('release_groups').select('name');
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
 
-    // 2. Prepare API URLs for both Planet and Geek
-    // Note: NZBPlanet uses 't=search&cat=2000' for their movie RSS
     const urls = [
-      {
-        name: 'Geek',
-        url: `https://api.nzbgeek.info/api?t=movie&cat=2000&limit=200&apikey=${process.env.NZBGEEK_API_KEY}&o=json`
-      },
-      {
-        name: 'Planet',
-        url: `https://nzbplanet.net/api?t=search&cat=2000&limit=200&apikey=${process.env.NZBPLANET_API_KEY}&o=json`
-      }
+      { name: 'Geek', url: `https://api.nzbgeek.info/api?t=movie&cat=2000&limit=100&apikey=${process.env.NZBGEEK_API_KEY}&o=json` },
+      { name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=2000&limit=100&apikey=${process.env.NZBPLANET_API_KEY}&o=json` }
     ];
 
-    // 3. Fetch from both simultaneously
-    const results = await Promise.all(
-      urls.map(source => 
-        fetch(source.url)
-          .then(res => res.json())
-          .catch(e => ({ channel: { item: [] } })) // Safe fallback if one is down
-      )
-    );
-    
-    // 4. Combine all items from both sources
-    const allItems = results.flatMap(data => data.channel?.item || []);
+    const responses = await Promise.all(urls.map(u => fetch(u.url).then(res => res.json()).catch(() => null)));
+    const allItems = responses.flatMap(data => data?.channel?.item || []);
 
-    // 5. Filter for Elite Groups + Valid IMDb IDs
+    // DEBUG MODE: If you add ?debug=true to the URL, see everything found
+    if (debug) {
+      return NextResponse.json({
+        total_found: allItems.length,
+        your_groups: groupList,
+        sample_titles: allItems.slice(0, 10).map(i => i.title)
+      });
+    }
+
     const eliteItems = allItems.filter((item: any) => {
       const title = item.title.toUpperCase();
-      const titleMatches = groupList.some(group => 
-        title.includes(`-${group}`) || title.includes(` ${group}`)
-      );
-      
-      const hasImdb = item.imdbid && item.imdbid !== "null";
-      return titleMatches && hasImdb;
+      // We removed the hyphen requirement to make it easier to catch groups
+      return groupList.some(group => title.includes(group)) && item.imdbid;
     });
 
-    // 6. Format and De-duplicate (so Radarr doesn't see the same movie twice)
     const seenIds = new Set();
     const formattedData = [];
 
     for (const item of eliteItems) {
       const cleanId = item.imdbid.toString().startsWith('tt') ? item.imdbid : `tt${item.imdbid}`;
-      
       if (!seenIds.has(cleanId)) {
         seenIds.add(cleanId);
-        formattedData.push({
-          title: item.title,
-          imdbId: cleanId
-        });
+        formattedData.push({ title: item.title, imdbId: cleanId });
       }
     }
 
     return NextResponse.json(formattedData);
-
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
