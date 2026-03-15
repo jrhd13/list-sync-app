@@ -13,8 +13,29 @@ export async function GET(request: Request) {
   const geekKey = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
   const planetKey = "618518524733b41d3487ca5a8d7a29df";
 
+  // 1. CAPABILITIES CHECK (The "Full Handshake" for Sonarr/Radarr)
   if (mode === 'caps') {
-    const capsXml = `<?xml version="1.0" encoding="UTF-8"?><caps><searching><search available="yes" supportedParams="q"/></searching><categories><category id="2000" name="Movies"/><category id="5000" name="TV"/></categories></caps>`.trim();
+    const capsXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <caps>
+      <server version="1.0" title="MediaFlow"/>
+      <searching>
+        <search available="yes" supportedParams="q"/>
+        <tv-search available="yes" supportedParams="q,season,ep,tvmazeid"/>
+        <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
+      </searching>
+      <categories>
+        <category id="2000" name="Movies">
+          <subcat id="2030" name="Movies/SD"/>
+          <subcat id="2040" name="Movies/HD"/>
+          <subcat id="2045" name="Movies/UHD"/>
+        </category>
+        <category id="5000" name="TV">
+          <subcat id="5030" name="TV/SD"/>
+          <subcat id="5040" name="TV/HD"/>
+          <subcat id="5045" name="TV/UHD"/>
+        </category>
+      </categories>
+    </caps>`.trim();
     return new NextResponse(capsXml, { headers: { 'Content-Type': 'application/xml' } });
   }
 
@@ -44,7 +65,7 @@ export async function GET(request: Request) {
       }));
     }
 
-    // FIX: Make the links safe for XML by converting raw & to &amp;
+    // Convert & to &amp; to make links XML safe
     const rssItems = filteredItems.map((item: any) => {
       const safeLink = item.link ? item.link.replace(/&/g, '&amp;') : '';
       
