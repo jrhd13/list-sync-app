@@ -7,13 +7,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const debug = searchParams.get('debug') === 'true';
 
-  // Key Map
+  // This helper function looks for the key with or without the NEXT_PUBLIC prefix
+  const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
+
   const keys = {
-    geek: process.env.NZBGEEK_API_KEY,
-    planet: process.env.NZBPLANET_API_KEY,
-    althub: process.env.ALTHUB_API_KEY,
-    scene: process.env.SCENENZB_API_KEY,
-    carnage: process.env.DIGITALCARNAGE_API_KEY
+    geek: getEnv('NZBGEEK_API_KEY'),
+    planet: getEnv('NZBPLANET_API_KEY'),
+    althub: getEnv('ALTHUB_API_KEY'),
+    scene: getEnv('SCENENZB_API_KEY'),
+    carnage: getEnv('DIGITALCARNAGE_API_KEY')
   };
 
   try {
@@ -29,12 +31,11 @@ export async function GET(request: Request) {
 
     if (endpoints.length === 0 && debug) {
       return NextResponse.json({ 
-        error: "No indexers found", 
-        available_env_vars: Object.keys(process.env).filter(k => k.includes('API_KEY')) 
+        error: "Still no keys found", 
+        all_detected_vars: Object.keys(process.env).filter(k => k.includes('API_KEY')) 
       });
     }
 
-    // Fetch all in parallel
     const responses = await Promise.all(
       endpoints.map(e => fetch(e.url).then(res => res.json()).catch(() => null))
     );
@@ -44,9 +45,15 @@ export async function GET(request: Request) {
     if (debug) {
       return NextResponse.json({
         active_indexers: endpoints.map(e => e.name),
-        total_items_scanned: allItems.length,
+        total_items: allItems.length,
         groups: groupList,
-        sample: allItems[0]?.title || "None found"
+        keys_found_status: {
+          geek: !!keys.geek,
+          planet: !!keys.planet,
+          althub: !!keys.althub,
+          scene: !!keys.scene,
+          carnage: !!keys.carnage
+        }
       });
     }
 
