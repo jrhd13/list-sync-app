@@ -19,7 +19,8 @@ export async function GET() {
       return titleMatches && hasImdb;
     });
 
-    const formattedData = eliteItems.map(item => ({
+    // Added ': any' below to satisfy the TypeScript error in your screenshot
+    const formattedData = eliteItems.map((item: any) => ({
       title: item.title,
       imdbId: item.imdbid.startsWith('tt') ? item.imdbid : `tt${item.imdbid}`
     }));
