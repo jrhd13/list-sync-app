@@ -14,9 +14,9 @@ export async function GET(request: Request) {
   const keys = {
     geek: getEnv('NZBGEEK_API_KEY') || "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
     planet: getEnv('NZBPLANET_API_KEY') || "618518524733b41d3487ca5a8d7a29df",
-    althub: getEnv('ALTHUB_API_KEY') || "ea47819ba51fe784642118d3ad12fa65"
-    scene: getEnv('SCENENZB_API_KEY') ||"b29985ef096f4e03ed11073f3f825aca"
-    carnage: getEnv('DIGITALCARNAGE_API_KEY') || "4e9d540c1b2d8a543d64f9682cd490e5"
+    althub: getEnv('ALTHUB_API_KEY'),
+    scene: getEnv('SCENENZB_API_KEY'),
+    carnage: getEnv('DIGITALCARNAGE_API_KEY')
   };
 
   try {
