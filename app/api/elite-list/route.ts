@@ -2,66 +2,63 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Extend Vercel timeout to 60 seconds
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const debug = searchParams.get('debug') === 'true';
 
   const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
+  
+  // Use Hardcoded keys if the Env Vars are failing
   const keys = {
-    geek: getEnv('eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV'),
-    planet: getEnv('618518524733b41d3487ca5a8d7a29df'),
-    althub: getEnv('ea47819ba51fe784642118d3ad12fa65'),
-    scene: getEnv('b29985ef096f4e03ed11073f3f825aca'),
-    carnage: getEnv('4e9d540c1b2d8a543d64f9682cd490e5')
+    geek: getEnv('NZBGEEK_API_KEY') || "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
+    planet: getEnv('NZBPLANET_API_KEY') || "618518524733b41d3487ca5a8d7a29df",
+    althub: getEnv('ALTHUB_API_KEY') || "ea47819ba51fe784642118d3ad12fa65"
+    scene: getEnv('SCENENZB_API_KEY') ||"b29985ef096f4e03ed11073f3f825aca"
+    carnage: getEnv('DIGITALCARNAGE_API_KEY') || "4e9d540c1b2d8a543d64f9682cd490e5"
   };
 
   try {
     const { data: dbGroups } = await supabase.from('release_groups').select('name');
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
-    const eliteCats = "2000,2010,2030,2035,2050,2060"; // HD only, no 4K
+    const eliteCats = "2000,2030,2035,2050,2060";
 
     const endpoints = [];
-    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&limit=200&apikey=${keys.geek}&o=json` });
-    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&limit=200&apikey=${keys.planet}&o=json` });
-    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&limit=200&apikey=${keys.althub}&o=json` });
-    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&limit=200&apikey=${keys.scene}&o=json` });
-    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=search&cat=${eliteCats}&limit=200&apikey=${keys.carnage}&o=json` });
+    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.geek}&o=json` });
+    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.planet}&o=json` });
+    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.althub}&o=json` });
+    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.scene}&o=json` });
+    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.carnage}&o=json` });
 
-    const responses = await Promise.all(
-      endpoints.map(e => fetch(e.url).then(res => res.json()).catch(() => null))
-    );
+    const allItems: any[] = [];
+    const status: any[] = [];
 
-    const allItems = responses.flatMap(data => data?.channel?.item || []);
+    // Fetch one by one to avoid timing out and see where it fails
+    for (const e of endpoints) {
+      try {
+        const res = await fetch(e.url, { next: { revalidate: 0 } });
+        const data = await res.json();
+        const found = data.channel?.item || [];
+        allItems.push(...found);
+        status.push({ name: e.name, count: found.length, success: true });
+      } catch (err) {
+        status.push({ name: e.name, count: 0, success: false });
+      }
+    }
 
     if (debug) {
-      // Create a sample of titles and identify their qualities to see what we are scanning
-      const sampleWithQualities = allItems.slice(0, 20).map((item: any) => {
-        const title = item.title.toUpperCase();
-        let quality = "Unknown";
-        if (title.includes("2160P") || title.includes("4K") || title.includes("UHD")) quality = "4K (Should be filtered out)";
-        else if (title.includes("1080P")) quality = "1080p";
-        else if (title.includes("720P")) quality = "720p";
-        
-        return {
-          title: item.title,
-          quality: quality,
-          has_imdb: !!item.imdbid,
-          matches_group: groupList.some(group => title.includes(group))
-        };
-      });
-
       return NextResponse.json({
+        indexer_status: status,
         total_scanned: allItems.length,
         groups_searching_for: groupList,
-        scan_sample: sampleWithQualities
+        sample: allItems.slice(0, 3).map(i => i.title)
       });
     }
 
     const eliteItems = allItems.filter((item: any) => {
       const title = item.title?.toUpperCase() || "";
-      const matches = groupList.some(group => title.includes(group));
-      return matches && item.imdbid && item.imdbid !== "null";
+      return groupList.some(group => title.includes(group)) && item.imdbid;
     });
 
     const seenIds = new Set();
