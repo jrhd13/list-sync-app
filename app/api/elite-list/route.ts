@@ -11,11 +11,11 @@ export async function GET(request: Request) {
   const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
 
   const keys = {
-    geek: getEnv('NZBGEEK_API_KEY'),
-    planet: getEnv('NZBPLANET_API_KEY'),
-    althub: getEnv('ALTHUB_API_KEY'),
-    scene: getEnv('SCENENZB_API_KEY'),
-    carnage: getEnv('DIGITALCARNAGE_API_KEY')
+    geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
+    planet: "618518524733b41d3487ca5a8d7a29df",
+    althub: "ea47819ba51fe784642118d3ad12fa65",
+    scene: "b29985ef096f4e03ed11073f3f825aca",
+    carnage: "4e9d540c1b2d8a543d64f9682cd490e5"
   };
 
   try {
