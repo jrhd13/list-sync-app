@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.planet}&o=json` });
     if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.althub}&o=json` });
     if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.scene}&o=json` });
-    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.carnage}&o=json` });
+    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=movie&cat=${eliteCats}&limit=100&apikey=${keys.carnage}&o=json` });
 
     const allItems: any[] = [];
     const status: any[] = [];
