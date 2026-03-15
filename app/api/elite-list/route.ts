@@ -12,8 +12,14 @@ export async function GET(request: Request) {
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
 
     const urls = [
-      { name: 'Geek', url: `https://api.nzbgeek.info/api?t=movie&cat=2000&limit=100&apikey=${process.env.NZBGEEK_API_KEY}&o=json` },
-      { name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=2000&limit=100&apikey=${process.env.NZBPLANET_API_KEY}&o=json` }
+      { 
+        name: 'Geek', 
+        url: `https://api.nzbgeek.info/api?t=movie&cat=2000&limit=100&apikey=${process.env.NZBGEEK_API_KEY}&o=json` 
+      },
+      { 
+        name: 'Planet', 
+        url: `https://nzbplanet.net/api?t=movie&cat=2000&limit=100&apikey=${process.env.NZBPLANET_API_KEY}&o=json` 
+      }
     ];
 
     const responses = await Promise.all(urls.map(u => fetch(u.url).then(res => res.json()).catch(() => null)));
