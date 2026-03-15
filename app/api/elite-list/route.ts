@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Extend Vercel timeout to 60 seconds
+export const maxDuration = 60; 
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,13 +10,12 @@ export async function GET(request: Request) {
 
   const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
   
-  // Use Hardcoded keys if the Env Vars are failing
   const keys = {
-    geek: getEnv('NZBGEEK_API_KEY') || "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
-    planet: getEnv('NZBPLANET_API_KEY') || "618518524733b41d3487ca5a8d7a29df",
-    althub: getEnv('ALTHUB_API_KEY'),
-    scene: getEnv('SCENENZB_API_KEY'),
-    carnage: getEnv('DIGITALCARNAGE_API_KEY')
+    geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
+    planet: "618518524733b41d3487ca5a8d7a29df",
+    althub: "ea47819ba51fe784642118d3ad12fa65",
+    scene: "b29985ef096f4e03ed11073f3f825aca",
+    carnage: "4e9d540c1b2d8a543d64f9682cd490e5"
   };
 
   try {
@@ -33,19 +32,31 @@ export async function GET(request: Request) {
 
     const allItems: any[] = [];
     const status: any[] = [];
+    const groupQuery = groupList.join(',');
 
-    // Fetch one by one to avoid timing out and see where it fails
+    // --- START OF NEW LOOP ---
     for (const e of endpoints) {
       try {
-        const res = await fetch(e.url, { next: { revalidate: 0 } });
-        const data = await res.json();
-        const found = data.channel?.item || [];
+        // Try targeted group search
+        const searchUrl = `${e.url}&q=${groupQuery}`;
+        let res = await fetch(searchUrl, { next: { revalidate: 0 } });
+        let data = await res.json();
+        let found = data.channel?.item || [];
+
+        // Fallback to general browse if specific search is empty
+        if (found.length === 0) {
+          res = await fetch(e.url, { next: { revalidate: 0 } });
+          data = await res.json();
+          found = data.channel?.item || [];
+        }
+
         allItems.push(...found);
         status.push({ name: e.name, count: found.length, success: true });
       } catch (err) {
         status.push({ name: e.name, count: 0, success: false });
       }
     }
+    // --- END OF NEW LOOP ---
 
     if (debug) {
       return NextResponse.json({
@@ -58,7 +69,8 @@ export async function GET(request: Request) {
 
     const eliteItems = allItems.filter((item: any) => {
       const title = item.title?.toUpperCase() || "";
-      return groupList.some(group => title.includes(group)) && item.imdbid;
+      const matchesGroup = groupList.some(group => title.includes(group));
+      return matchesGroup && item.imdbid && item.imdbid !== "null";
     });
 
     const seenIds = new Set();
