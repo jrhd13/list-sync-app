@@ -7,7 +7,11 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const debug = searchParams.get('debug') === 'true';
+  const force = searchParams.get('force') === 'true'; // New force flag
 
+  // If force is true, we add a random string to the fetch to bypass caches
+  const cacheBuster = force ? `&cb=${Date.now()}` : '';
+  
   const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
   
   const keys = {
