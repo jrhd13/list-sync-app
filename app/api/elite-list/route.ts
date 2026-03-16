@@ -3,80 +3,92 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+// 1. Helper function to find IMDb ID if the indexer fails us
+async function getImdbByTitle(movieTitle: string) {
+  try {
+    // 1. Clean the title: "Dirty.Dancing.1987.2160p..." -> "Dirty Dancing"
+    const cleanTitle = movieTitle
+      .split(/(\d{4})|1080p|720p|2160p|4k|UHD|WEB-DL|BluRay/i)[0]
+      .replace(/\./g, ' ')
+      .trim();
+    
+    // 2. Use the Public IMDb Suggest API (No Key Needed)
+    // This returns a list of potential matches
+    const searchUrl = `https://v3.sg.media-imdb.com/suggestion/${cleanTitle[0].toLowerCase()}/${encodeURIComponent(cleanTitle)}.json`;
+    const res = await fetch(searchUrl);
+    const data = await res.json();
+    
+    // 3. Find the first result that is a movie ("feature")
+    const match = data.d?.find((item: any) => item.q === "feature" || item.id.startsWith("tt"));
+    
+    return match ? match.id : "N/A";
+  } catch (err) {
+    console.error("IMDb Search Error:", err);
+    return "N/A";
+  }
+}
+
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const debug = searchParams.get('debug') === 'true';
-
-  // --- HARDCODED KEYS START ---
-  const keys = {
-    geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
-    planet: "618518524733b41d3487ca5a8d7a29df",
-    althub: "ea47819ba51fe784642118d3ad12fa65",
-    scene: "b29985ef096f4e03ed11073f3f825aca"
-  };
-
-  const radarr = {
-    url: "https://jrhd13-radarr.elfhosted.party",
-    key: "5c1b945af2e44b10ac5762f5580e1df3"
-  };
-  // --- HARDCODED KEYS END ---
-
   try {
     const { data: dbGroups } = await supabase.from('release_groups').select('name');
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
     const eliteCats = "2000,2030,2035,2040,2045,2050,2060";
 
+    // Hardcoded keys for stability
+    const geekKey = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
+    const planetKey = "618518524733b41d3487ca5a8d7a29df";
+    const althubKey = "ea47819ba51fe784642118d3ad12fa65";
+    const sceneKey = "b29985ef096f4e03ed11073f3f825aca";
+
     const endpoints = [];
-    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&apikey=${keys.geek}&o=json` });
-    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&apikey=${keys.planet}&o=json` });
-    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&apikey=${keys.althub}&o=json` });
-    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&apikey=${keys.scene}&o=json` });
+    if (geekKey) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&apikey=${geekKey}&o=json` });
+    if (planetKey) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&apikey=${planetKey}&o=json` });
+    if (althubKey) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&apikey=${althubKey}&o=json` });
+    if (sceneKey) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&apikey=${sceneKey}&o=json` });
 
     const allItems: any[] = [];
 
-    // DEEP SEARCH LOOP: Search specifically for each group name
     for (const group of groupList) {
       for (const e of endpoints) {
         try {
-          const searchUrl = `${e.url}&q=${group}&limit=100`;
+          const searchUrl = `${e.url}&q=${group}&limit=50`;
           const res = await fetch(searchUrl, { next: { revalidate: 0 } });
           const data = await res.json();
           const found = data.channel?.item || [];
-          allItems.push(...found);
+          allItems.push(...(Array.isArray(found) ? found : [found]));
         } catch (err) { console.error(`Failed ${e.name}`); }
       }
     }
 
-    const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
-    // Inside app/api/elite-list/route.ts
-
-const formattedData = allItems.map((item: any) => {
-      const title = item.title?.toUpperCase() || "";
-      const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
-      const serviceFound = services.find(s => title.includes(s)) || "WEB";
-
-      // 1. Look for the ID in every possible nook and cranny
+    // --- SMART EXTRACTION WITH IMDB LOOKUP ---
+    // We use Promise.all because getImdbByTitle is an async (network) call
+    const formattedData = await Promise.all(allItems.map(async (item: any) => {
+      const title = item.title || "";
       let cleanId = "N/A";
+
+      // Step A: Check if indexer actually provided it (the easy way)
       const searchString = JSON.stringify(item);
-      const match = searchString.match(/imdb|tt(\d{6,9})/i);
-      
-      // If we find 'tt' + digits anywhere in the data
+      const match = searchString.match(/tt(\d{7,9})/);
       if (match) {
-        const idMatch = searchString.match(/tt(\d{6,9})/);
-        if (idMatch) cleanId = idMatch[0];
+        cleanId = match[0];
+      }
+
+      // Step B: If still N/A, use our OMDb "Brain"
+      if (cleanId === "N/A" || cleanId === "tt0000000") {
+        cleanId = await getImdbByTitle(title);
       }
 
       return {
         title: item.title,
         imdbId: cleanId,
-        service: serviceFound,
+        service: ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX"].find(s => title.toUpperCase().includes(s)) || "WEB",
         pubDate: item.pubDate,
-        // We add this temporarily to see what's happening
-        debug: item['newznab:attr'] ? "Has Attrs" : "No Attrs", 
+        size: item.enclosure?.['@attributes']?.length || 0,
         guid: item.guid?.['#text'] || item.guid || ""
       };
-    });
-    // Remove duplicates by title
+    }));
+
+    // Remove duplicates
     const uniqueData = Array.from(new Map(formattedData.map(item => [item.title, item])).values());
 
     return NextResponse.json(uniqueData);
