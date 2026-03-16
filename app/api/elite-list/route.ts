@@ -2,92 +2,68 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; 
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const debug = searchParams.get('debug') === 'true';
-  const force = searchParams.get('force') === 'true'; // New force flag
 
-  // If force is true, we add a random string to the fetch to bypass caches
-  const cacheBuster = force ? `&cb=${Date.now()}` : '';
-  
-  const getEnv = (name: string) => process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
-  
+  // --- HARDCODED KEYS START ---
   const keys = {
     geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
     planet: "618518524733b41d3487ca5a8d7a29df",
     althub: "ea47819ba51fe784642118d3ad12fa65",
-    scene: "b29985ef096f4e03ed11073f3f825aca",
-    carnage: "4e9d540c1b2d8a543d64f9682cd490e5"
+    scene: "b29985ef096f4e03ed11073f3f825aca"
   };
+
+  const radarr = {
+    url: "https://jrhd13-radarr.elfhosted.party",
+    key: "5c1b945af2e44b10ac5762f5580e1df3"
+  };
+  // --- HARDCODED KEYS END ---
 
   try {
     const { data: dbGroups } = await supabase.from('release_groups').select('name');
     const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
-    const eliteCats = "2000,2030,2035,2050,2060";
+    const eliteCats = "2000,2030,2035,2040,2045,2050,2060";
 
     const endpoints = [];
-    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.geek}&o=json` });
-    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.planet}&o=json` });
-    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.althub}&o=json` });
-    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&limit=100&apikey=${keys.scene}&o=json` });
-    if (keys.carnage) endpoints.push({ name: 'Carnage', url: `https://digitalcarnage.cc/api?t=movie&cat=${eliteCats}&limit=100&apikey=${keys.carnage}&o=json` });
+    if (keys.geek) endpoints.push({ name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&apikey=${keys.geek}&o=json` });
+    if (keys.planet) endpoints.push({ name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=${eliteCats}&apikey=${keys.planet}&o=json` });
+    if (keys.althub) endpoints.push({ name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=${eliteCats}&apikey=${keys.althub}&o=json` });
+    if (keys.scene) endpoints.push({ name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=${eliteCats}&apikey=${keys.scene}&o=json` });
 
     const allItems: any[] = [];
-    const status: any[] = [];
-    const groupQuery = groupList.join(',');
 
-    // --- START OF NEW LOOP ---
-    for (const e of endpoints) {
-      try {
-        // Try targeted group search
-        const searchUrl = `${e.url}&q=${groupQuery}`;
-        let res = await fetch(searchUrl, { next: { revalidate: 0 } });
-        let data = await res.json();
-        let found = data.channel?.item || [];
-
-        // Fallback to general browse if specific search is empty
-        if (found.length === 0) {
-          res = await fetch(e.url, { next: { revalidate: 0 } });
-          data = await res.json();
-          found = data.channel?.item || [];
-        }
-
-        allItems.push(...found);
-        status.push({ name: e.name, count: found.length, success: true });
-      } catch (err) {
-        status.push({ name: e.name, count: 0, success: false });
+    // DEEP SEARCH LOOP: Search specifically for each group name
+    for (const group of groupList) {
+      for (const e of endpoints) {
+        try {
+          const searchUrl = `${e.url}&q=${group}&limit=100`;
+          const res = await fetch(searchUrl, { next: { revalidate: 0 } });
+          const data = await res.json();
+          const found = data.channel?.item || [];
+          allItems.push(...found);
+        } catch (err) { console.error(`Failed ${e.name}`); }
       }
     }
-    // --- END OF NEW LOOP ---
 
-    if (debug) {
-      return NextResponse.json({
-        indexer_status: status,
-        total_scanned: allItems.length,
-        groups_searching_for: groupList,
-        sample: allItems.slice(0, 3).map(i => i.title)
-      });
-    }
-
-    const eliteItems = allItems.filter((item: any) => {
-      const title = item.title?.toUpperCase() || "";
-      const matchesGroup = groupList.some(group => title.includes(group));
-      return matchesGroup && item.imdbid && item.imdbid !== "null";
+    const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
+    const formattedData = allItems.map((item: any) => {
+      const title = item.title.toUpperCase();
+      const serviceFound = services.find(s => title.includes(s)) || "WEB";
+      return {
+        title: item.title,
+        imdbId: item.imdbid ? (item.imdbid.toString().startsWith('tt') ? item.imdbid : `tt${item.imdbid}`) : "N/A",
+        service: serviceFound,
+        pubDate: item.pubDate,
+        size: item.enclosure?.['@attributes']?.length || 0
+      };
     });
 
-    const seenIds = new Set();
-    const formattedData = [];
-    for (const item of eliteItems) {
-      const cleanId = item.imdbid.toString().startsWith('tt') ? item.imdbid : `tt${item.imdbid}`;
-      if (!seenIds.has(cleanId)) {
-        seenIds.add(cleanId);
-        formattedData.push({ title: item.title, imdbId: cleanId });
-      }
-    }
+    // Remove duplicates by title
+    const uniqueData = Array.from(new Map(formattedData.map(item => [item.title, item])).values());
 
-    return NextResponse.json(formattedData);
+    return NextResponse.json(uniqueData);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
