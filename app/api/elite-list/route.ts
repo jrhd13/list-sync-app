@@ -57,32 +57,37 @@ const formattedData = allItems.map((item: any) => {
 
       let rawId = "";
 
-      // 1. Look in the standard imdbid field
-      if (item.imdbid) {
-        rawId = item.imdbid.toString();
-      } 
-      // 2. Look inside the 'newznab:attr' tags (Crucial for SceneNZB/Planet/Geek)
-      else if (item['newznab:attr']) {
-        const attributes = Array.isArray(item['newznab:attr']) ? item['newznab:attr'] : [item['newznab:attr']];
-        
-        // Look for 'imdb' OR 'rid' OR 'imdbid'
-        const found = attributes.find((a: any) => 
-          a['@attributes']?.name === 'imdb' || 
-          a['@attributes']?.name === 'imdbid'
-        );
-        
-        if (found) {
-          rawId = found['@attributes']?.value;
-        }
+      // 1. Check common fields directly
+      if (item.imdbid) rawId = item.imdbid.toString();
+      else if (item.imdb) rawId = item.imdb.toString();
+
+      // 2. Scan every single key in the item for "imdb" (The thorough way)
+      if (!rawId || rawId === "N/A" || rawId === "0") {
+        Object.keys(item).forEach(key => {
+          // Look for any key that has "attr" in it
+          if (key.includes('attr')) {
+            const attrs = Array.isArray(item[key]) ? item[key] : [item[key]];
+            const found = attrs.find((a: any) => 
+              a['@attributes']?.name === 'imdb' || a['@attributes']?.name === 'imdbid'
+            );
+            if (found) rawId = found['@attributes']?.value;
+          }
+        });
       }
 
-      // --- CLEAN THE ID ---
+      // 3. Last resort: Look for 'tt' numbers in the description or link
+      if (!rawId || rawId === "N/A") {
+        const stringified = JSON.stringify(item);
+        const match = stringified.match(/tt(\d{7,8})/); // Finds tt + 7 or 8 digits
+        if (match) rawId = match[1];
+      }
+
+      // --- CLEAN AND FORMAT ---
       let cleanId = "N/A";
-      if (rawId && rawId !== "" && rawId !== "0") {
-        // Remove 'tt' if it exists to clean it, then add it back correctly
-        const numbersOnly = rawId.replace(/\D/g, "");
-        if (numbersOnly.length > 3) {
-           cleanId = `tt${numbersOnly}`;
+      if (rawId && rawId !== "N/A" && rawId !== "0") {
+        const digits = rawId.replace(/\D/g, ""); // Remove everything but numbers
+        if (digits.length >= 5) {
+          cleanId = `tt${digits}`;
         }
       }
 
