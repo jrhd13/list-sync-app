@@ -55,40 +55,15 @@ const formattedData = allItems.map((item: any) => {
       const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
       const serviceFound = services.find(s => title.includes(s)) || "WEB";
 
-      let rawId = "";
-
-      // 1. Check common fields directly
-      if (item.imdbid) rawId = item.imdbid.toString();
-      else if (item.imdb) rawId = item.imdb.toString();
-
-      // 2. Scan every single key in the item for "imdb" (The thorough way)
-      if (!rawId || rawId === "N/A" || rawId === "0") {
-        Object.keys(item).forEach(key => {
-          // Look for any key that has "attr" in it
-          if (key.includes('attr')) {
-            const attrs = Array.isArray(item[key]) ? item[key] : [item[key]];
-            const found = attrs.find((a: any) => 
-              a['@attributes']?.name === 'imdb' || a['@attributes']?.name === 'imdbid'
-            );
-            if (found) rawId = found['@attributes']?.value;
-          }
-        });
-      }
-
-      // 3. Last resort: Look for 'tt' numbers in the description or link
-      if (!rawId || rawId === "N/A") {
-        const stringified = JSON.stringify(item);
-        const match = stringified.match(/tt(\d{7,8})/); // Finds tt + 7 or 8 digits
-        if (match) rawId = match[1];
-      }
-
-      // --- CLEAN AND FORMAT ---
+      // 1. Look for the ID in every possible nook and cranny
       let cleanId = "N/A";
-      if (rawId && rawId !== "N/A" && rawId !== "0") {
-        const digits = rawId.replace(/\D/g, ""); // Remove everything but numbers
-        if (digits.length >= 5) {
-          cleanId = `tt${digits}`;
-        }
+      const searchString = JSON.stringify(item);
+      const match = searchString.match(/imdb|tt(\d{6,9})/i);
+      
+      // If we find 'tt' + digits anywhere in the data
+      if (match) {
+        const idMatch = searchString.match(/tt(\d{6,9})/);
+        if (idMatch) cleanId = idMatch[0];
       }
 
       return {
@@ -96,7 +71,8 @@ const formattedData = allItems.map((item: any) => {
         imdbId: cleanId,
         service: serviceFound,
         pubDate: item.pubDate,
-        size: item.enclosure?.['@attributes']?.length || 0,
+        // We add this temporarily to see what's happening
+        debug: item['newznab:attr'] ? "Has Attrs" : "No Attrs", 
         guid: item.guid?.['#text'] || item.guid || ""
       };
     });
