@@ -3,14 +3,25 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// Helper for quick IMDb lookup (Public API)
-async function getImdbId(title: string) {
+// Helper to get Poster and ID from TMDB
+async function getTmdbMetadata(title: string, apiKey: string) {
   try {
     const clean = title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
-    const res = await fetch(`https://v3.sg.media-imdb.com/suggestion/${clean[0].toLowerCase()}/${encodeURIComponent(clean)}.json`);
+    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(clean)}`);
     const data = await res.json();
-    return data.d?.[0]?.id || "N/A";
-  } catch { return "N/A"; }
+    const movie = data.results?.[0];
+    
+    if (!movie) return { poster: null, id: "N/A" };
+
+    // Get the external IDs to find the IMDb 'tt' number
+    const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`);
+    const details = await detailRes.json();
+
+    return {
+      poster: movie.poster_path,
+      id: details.imdb_id || "N/A"
+    };
+  } catch { return { poster: null, id: "N/A" }; }
 }
 
 export async function GET() {
@@ -19,6 +30,7 @@ export async function GET() {
     const shuffled = dbGroups?.sort(() => 0.5 - Math.random()) || [];
     const selectedGroups = shuffled.slice(0, 5).map(g => g.name.toUpperCase());
 
+    const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e"; // <--- PUT KEY HERE
     const keys = {
       geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
       planet: "618518524733b41d3487ca5a8d7a29df",
@@ -35,7 +47,7 @@ export async function GET() {
 
     const searchPromises = selectedGroups.flatMap(group => 
       endpoints.map(e => 
-        fetch(`${e.url}&q=${group}&limit=20`, { signal: AbortSignal.timeout(6000) })
+        fetch(`${e.url}&q=${group}&limit=15`, { signal: AbortSignal.timeout(6000) })
           .then(res => res.json())
           .catch(() => ({ channel: { item: [] } }))
       )
@@ -44,40 +56,36 @@ export async function GET() {
     const allResults = await Promise.all(searchPromises);
     const allItems = allResults.flatMap(data => data.channel?.item || []);
 
-    // Initial formatting + Regex ID check
-    let formattedData = allItems.map((item: any) => {
-      const title = item.title || "";
+    // Unique items by title
+    let formattedData = Array.from(new Map(allItems.map(item => [item.title, item])).values());
+    formattedData.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+
+    // Safety Valve: Only lookup top 12 for speed
+    let lookupCount = 0;
+    const finalData = await Promise.all(formattedData.slice(0, 40).map(async (item) => {
       const searchString = JSON.stringify(item);
       const idMatch = searchString.match(/tt(\d{7,9})/);
-      
+      let cleanId = idMatch ? idMatch[0] : "N/A";
+      let posterPath = null;
+
+      if (cleanId === "N/A" && lookupCount < 12) {
+        lookupCount++;
+        const meta = await getTmdbMetadata(item.title, TMDB_KEY);
+        cleanId = meta.id;
+        posterPath = meta.poster;
+      }
+
       return {
-        title: title,
-        imdbId: idMatch ? idMatch[0] : "N/A",
+        title: item.title,
+        imdbId: cleanId,
+        posterPath: posterPath,
         pubDate: item.pubDate,
         guid: item.guid?.['#text'] || item.guid || ""
       };
-    });
-
-    // Remove duplicates
-    formattedData = Array.from(new Map(formattedData.map(item => [item.title, item])).values());
-    formattedData.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-
-    // --- THE SAFETY VALVE ---
-    // Only lookup IDs for the top 10 items if they are still N/A
-    // This prevents the 504 timeout while fixing the "N/A" issue
-    let lookupCount = 0;
-    const finalData = await Promise.all(formattedData.map(async (item) => {
-      if (item.imdbId === "N/A" && lookupCount < 10) {
-        lookupCount++;
-        const foundId = await getImdbId(item.title);
-        return { ...item, imdbId: foundId };
-      }
-      return item;
     }));
 
     return NextResponse.json(finalData);
-
-  } catch (error: any) {
-    return NextResponse.json({ error: "API Error" }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: "API Fail" }, { status: 500 });
   }
 }
