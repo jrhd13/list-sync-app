@@ -11,8 +11,8 @@ export async function GET() {
     const selectedGroups = shuffled.slice(0, 10).map(g => g.name.toUpperCase());
 
     const keys = {
-      geek: "YOUR_GEEK_KEY",
-      planet: "YOUR_PLANET_KEY"
+      geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
+      planet: "618518524733b41d3487ca5a8d7a29df"
     };
 
     const endpoints = [
