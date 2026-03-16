@@ -13,7 +13,8 @@ async function getTmdbMetadata(title: string, apiKey: string) {
     
     if (!movie) return { poster: null, id: "N/A" };
 
-    // Get the external IDs to find the IMDb 'tt' number
+    // If we already have the poster, we can skip the extra ID fetch if needed, 
+    // but usually, it's safer to get the external ID for Radarr.
     const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`);
     const details = await detailRes.json();
 
@@ -28,26 +29,22 @@ export async function GET() {
   try {
     const { data: dbGroups } = await supabase.from('release_groups').select('name');
     const shuffled = dbGroups?.sort(() => 0.5 - Math.random()) || [];
-    const selectedGroups = shuffled.slice(0, 5).map(g => g.name.toUpperCase());
+    const selectedGroups = shuffled.slice(0, 10).map(g => g.name.toUpperCase());
 
-    const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e"; // <--- PUT KEY HERE
+    const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e"; // <--- DOUBLE CHECK THIS KEY
     const keys = {
       geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV",
-      planet: "618518524733b41d3487ca5a8d7a29df",
-      althub: "ea47819ba51fe784642118d3ad12fa65",
-      scene: "b29985ef096f4e03ed11073f3f825aca"
+      planet: "618518524733b41d3487ca5a8d7a29df"
     };
 
     const endpoints = [
       { name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=2000&apikey=${keys.geek}&o=json` },
-      { name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=2000&apikey=${keys.planet}&o=json` },
-      { name: 'AltHub', url: `https://althub.co.za/api?t=search&cat=2000&apikey=${keys.althub}&o=json` },
-      { name: 'Scene', url: `https://scenenzbs.com/api?t=search&cat=2000&apikey=${keys.scene}&o=json` }
+      { name: 'Planet', url: `https://nzbplanet.net/api?t=search&cat=2000&apikey=${keys.planet}&o=json` }
     ];
 
     const searchPromises = selectedGroups.flatMap(group => 
       endpoints.map(e => 
-        fetch(`${e.url}&q=${group}&limit=15`, { signal: AbortSignal.timeout(6000) })
+        fetch(`${e.url}&q=${group}&limit=30`, { signal: AbortSignal.timeout(7000) })
           .then(res => res.json())
           .catch(() => ({ channel: { item: [] } }))
       )
@@ -56,22 +53,23 @@ export async function GET() {
     const allResults = await Promise.all(searchPromises);
     const allItems = allResults.flatMap(data => data.channel?.item || []);
 
-    // Unique items by title
-    let formattedData = Array.from(new Map(allItems.map(item => [item.title, item])).values());
-    formattedData.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+    // Unique by title
+    const uniqueData = Array.from(new Map(allItems.map(item => [item.title, item])).values());
+    uniqueData.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 
-    // Safety Valve: Only lookup top 12 for speed
+    // SAFETY VALVE: Populate posters and missing IDs
     let lookupCount = 0;
-    const finalData = await Promise.all(formattedData.slice(0, 40).map(async (item) => {
+    const finalData = await Promise.all(uniqueData.slice(0, 40).map(async (item: any) => {
       const searchString = JSON.stringify(item);
       const idMatch = searchString.match(/tt(\d{7,9})/);
       let cleanId = idMatch ? idMatch[0] : "N/A";
       let posterPath = null;
 
-      if (cleanId === "N/A" && lookupCount < 12) {
+      // Even if we have an ID, we still need TMDB to get the posterPath for the dashboard
+      if (lookupCount < 15) {
         lookupCount++;
         const meta = await getTmdbMetadata(item.title, TMDB_KEY);
-        cleanId = meta.id;
+        if (cleanId === "N/A") cleanId = meta.id; // Only overwrite if missing
         posterPath = meta.poster;
       }
 
@@ -85,7 +83,7 @@ export async function GET() {
     }));
 
     return NextResponse.json(finalData);
-  } catch (error) {
-    return NextResponse.json({ error: "API Fail" }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: "Sync Fail" }, { status: 500 });
   }
 }
