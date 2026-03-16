@@ -55,51 +55,46 @@ const formattedData = allItems.map((item: any) => {
       const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
       const serviceFound = services.find(s => title.includes(s)) || "WEB";
 
-      // --- DEEP DIVE ID EXTRACTION ---
       let rawId = "";
 
-      // 1. Try standard field
+      // 1. Look in the standard imdbid field
       if (item.imdbid) {
         rawId = item.imdbid.toString();
       } 
-      // 2. Try the 'newznab:attr' array (Very common for Planet/Geek)
+      // 2. Look inside the 'newznab:attr' tags (Crucial for SceneNZB/Planet/Geek)
       else if (item['newznab:attr']) {
-        const attributes = Array.isArray(item['newznab:attr']) 
-          ? item['newznab:attr'] 
-          : [item['newznab:attr']];
-          
-        const foundAttr = attributes.find((a: any) => 
-          a['@attributes']?.name === 'imdb' || a['@attributes']?.name === 'imdbid'
+        const attributes = Array.isArray(item['newznab:attr']) ? item['newznab:attr'] : [item['newznab:attr']];
+        
+        // Look for 'imdb' OR 'rid' OR 'imdbid'
+        const found = attributes.find((a: any) => 
+          a['@attributes']?.name === 'imdb' || 
+          a['@attributes']?.name === 'imdbid'
         );
         
-        if (foundAttr) {
-          rawId = foundAttr['@attributes']?.value;
+        if (found) {
+          rawId = found['@attributes']?.value;
         }
-      }
-      // 3. Try to find it inside the 'description' (The "Hail Mary" move)
-      else if (item.description && item.description.includes('imdb.com/title/tt')) {
-        const match = item.description.match(/tt\d+/);
-        if (match) rawId = match[0];
       }
 
       // --- CLEAN THE ID ---
       let cleanId = "N/A";
-      if (rawId && rawId !== "") {
-        // Remove 'tt' if it's already there, then add it back to be consistent
+      if (rawId && rawId !== "" && rawId !== "0") {
+        // Remove 'tt' if it exists to clean it, then add it back correctly
         const numbersOnly = rawId.replace(/\D/g, "");
-        cleanId = `tt${numbersOnly}`;
+        if (numbersOnly.length > 3) {
+           cleanId = `tt${numbersOnly}`;
+        }
       }
 
       return {
         title: item.title,
-        imdbId: cleanId, // This will now show "tt1234567" or "N/A"
+        imdbId: cleanId,
         service: serviceFound,
         pubDate: item.pubDate,
         size: item.enclosure?.['@attributes']?.length || 0,
         guid: item.guid?.['#text'] || item.guid || ""
       };
     });
-
     // Remove duplicates by title
     const uniqueData = Array.from(new Map(formattedData.map(item => [item.title, item])).values());
 
