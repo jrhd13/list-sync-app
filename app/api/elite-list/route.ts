@@ -48,16 +48,38 @@ export async function GET(request: Request) {
     }
 
     const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
-    const formattedData = allItems.map((item: any) => {
-      const title = item.title.toUpperCase();
-      const serviceFound = services.find(s => title.includes(s)) || "WEB";
-      return {
-        title: item.title,
-        imdbId: item.imdbid ? (item.imdbid.toString().startsWith('tt') ? item.imdbid : `tt${item.imdbid}`) : "N/A",
-        service: serviceFound,
-        pubDate: item.pubDate,
-        size: item.enclosure?.['@attributes']?.length || 0
-      };
+    // Inside app/api/elite-list/route.ts
+
+const formattedData = allItems.map((item: any) => {
+  const title = item.title.toUpperCase();
+  const serviceFound = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"].find(s => title.includes(s)) || "WEB";
+
+  // --- NEW IMPROVED ID EXTRACTOR ---
+  let cleanId = "N/A";
+  
+  // 1. Check if it's in the standard imdbid field
+  if (item.imdbid) {
+    cleanId = item.imdbid.toString();
+  } 
+  // 2. Check the "newznab:attr" list (common in Geek/Planet)
+  else if (item['newznab:attr']) {
+    const attrs = Array.isArray(item['newznab:attr']) ? item['newznab:attr'] : [item['newznab:attr']];
+    const imdbAttr = attrs.find((a: any) => a['@attributes']?.name === 'imdb');
+    if (imdbAttr) cleanId = imdbAttr['@attributes']?.value;
+  }
+
+  // Ensure it starts with 'tt'
+  if (cleanId !== "N/A" && !cleanId.startsWith('tt')) {
+    cleanId = `tt${cleanId}`;
+  }
+
+  return {
+    title: item.title,
+    imdbId: cleanId,
+    service: serviceFound,
+    pubDate: item.pubDate,
+    size: item.enclosure?.['@attributes']?.length || 0
+  };
     });
 
     // Remove duplicates by title

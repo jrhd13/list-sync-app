@@ -1,35 +1,35 @@
 import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 1. Use your REAL Vercel URL here
-    // Replace 'your-app-name.vercel.app' with your actual production link
-    const domain = "https://list-sync-app-w1hi-eight.vercel.app/"; 
+    // We're going to hit the database directly here to be safe
+    const { data: dbGroups } = await supabase.from('release_groups').select('name');
+    const groupList = dbGroups?.map(g => g.name.toUpperCase()) || [];
     
-    const res = await fetch(`${domain}/api/elite-list?force=true`, {
-      cache: 'no-store' // This ensures it doesn't get stuck on old data
-    });
+    // Hardcode your key for a quick test
+    const geekKey = "YOUR_NZBGEEK_KEY_HERE"; 
+    const eliteCats = "2000,2030,2035,2040,2045,2050,2060";
 
-    const items = await res.json();
+    // Just fetch from one indexer for the Radarr List to keep it fast
+    const res = await fetch(`https://api.nzbgeek.info/api?t=search&cat=${eliteCats}&apikey=${geekKey}&q=${groupList[0] || 'NTB'}&limit=50&o=json`);
+    const data = await res.json();
+    const items = data.channel?.item || [];
 
-    if (!Array.isArray(items)) {
-      console.log("Elite list did not return an array");
-      return NextResponse.json([]);
-    }
+    const formatted = items.map((item: any) => {
+      let id = "";
+      if (item['newznab:attr']) {
+        const attrs = Array.isArray(item['newznab:attr']) ? item['newznab:attr'] : [item['newznab:attr']];
+        const attr = attrs.find((a: any) => a['@attributes']?.name === 'imdb');
+        id = attr ? attr['@attributes']?.value : "";
+      }
+      return { title: item.title, imdb_id: id.startsWith('tt') ? id : `tt${id}` };
+    }).filter((i: any) => i.imdb_id.length > 5);
 
-    // 2. Format for Radarr
-    // We only take items that have a valid IMDb ID
-    const formattedForRadarr = items
-      .filter(item => item.imdbId && item.imdbId !== "N/A")
-      .map(item => ({
-        title: item.title,
-        imdb_id: item.imdbId
-      }));
-
-    return NextResponse.json(formattedForRadarr);
-
+    return NextResponse.json(formatted);
   } catch (err) {
-    console.error("Radarr List Error:", err);
-    return NextResponse.json([], { status: 500 });
+    return NextResponse.json([]);
   }
 }
