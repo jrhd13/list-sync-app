@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     for (const group of groupList) {
       for (const e of endpoints) {
         try {
-          const searchUrl = `${e.url}&q=${group}&limit=50`;
+          const searchUrl = `${e.url}&q=${group}&limit=100`;
           const res = await fetch(searchUrl, { next: { revalidate: 0 } });
           const data = await res.json();
           const found = data.channel?.item || [];
