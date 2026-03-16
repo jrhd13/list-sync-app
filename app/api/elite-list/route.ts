@@ -51,35 +51,53 @@ export async function GET(request: Request) {
     // Inside app/api/elite-list/route.ts
 
 const formattedData = allItems.map((item: any) => {
-  const title = item.title.toUpperCase();
-  const serviceFound = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"].find(s => title.includes(s)) || "WEB";
+      const title = item.title?.toUpperCase() || "";
+      const services = ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX", "MAXX", "DSNY"];
+      const serviceFound = services.find(s => title.includes(s)) || "WEB";
 
-  // --- NEW IMPROVED ID EXTRACTOR ---
-  let cleanId = "N/A";
-  
-  // 1. Check if it's in the standard imdbid field
-  if (item.imdbid) {
-    cleanId = item.imdbid.toString();
-  } 
-  // 2. Check the "newznab:attr" list (common in Geek/Planet)
-  else if (item['newznab:attr']) {
-    const attrs = Array.isArray(item['newznab:attr']) ? item['newznab:attr'] : [item['newznab:attr']];
-    const imdbAttr = attrs.find((a: any) => a['@attributes']?.name === 'imdb');
-    if (imdbAttr) cleanId = imdbAttr['@attributes']?.value;
-  }
+      // --- DEEP DIVE ID EXTRACTION ---
+      let rawId = "";
 
-  // Ensure it starts with 'tt'
-  if (cleanId !== "N/A" && !cleanId.startsWith('tt')) {
-    cleanId = `tt${cleanId}`;
-  }
+      // 1. Try standard field
+      if (item.imdbid) {
+        rawId = item.imdbid.toString();
+      } 
+      // 2. Try the 'newznab:attr' array (Very common for Planet/Geek)
+      else if (item['newznab:attr']) {
+        const attributes = Array.isArray(item['newznab:attr']) 
+          ? item['newznab:attr'] 
+          : [item['newznab:attr']];
+          
+        const foundAttr = attributes.find((a: any) => 
+          a['@attributes']?.name === 'imdb' || a['@attributes']?.name === 'imdbid'
+        );
+        
+        if (foundAttr) {
+          rawId = foundAttr['@attributes']?.value;
+        }
+      }
+      // 3. Try to find it inside the 'description' (The "Hail Mary" move)
+      else if (item.description && item.description.includes('imdb.com/title/tt')) {
+        const match = item.description.match(/tt\d+/);
+        if (match) rawId = match[0];
+      }
 
-  return {
-    title: item.title,
-    imdbId: cleanId,
-    service: serviceFound,
-    pubDate: item.pubDate,
-    size: item.enclosure?.['@attributes']?.length || 0
-  };
+      // --- CLEAN THE ID ---
+      let cleanId = "N/A";
+      if (rawId && rawId !== "") {
+        // Remove 'tt' if it's already there, then add it back to be consistent
+        const numbersOnly = rawId.replace(/\D/g, "");
+        cleanId = `tt${numbersOnly}`;
+      }
+
+      return {
+        title: item.title,
+        imdbId: cleanId, // This will now show "tt1234567" or "N/A"
+        service: serviceFound,
+        pubDate: item.pubDate,
+        size: item.enclosure?.['@attributes']?.length || 0,
+        guid: item.guid?.['#text'] || item.guid || ""
+      };
     });
 
     // Remove duplicates by title
