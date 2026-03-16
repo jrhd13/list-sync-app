@@ -1,158 +1,116 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
-const SERVICES = [
-  { name: "All Services", id: "" },
-  { name: "Netflix", id: "8" },
-  { name: "Disney+", id: "337" },
-  { name: "Prime Video", id: "9" },
-  { name: "Paramount+ 🆕", id: "531" },
-  { name: "Hulu (Disney+ UK) 🆕", id: "15" },
-  { name: "NOW (HBO) 🇬🇧", id: "481" },
-  { name: "BBC iPlayer 🇬🇧", id: "332" },
-  { name: "ITVX 🇬🇧", id: "41" },
-  { name: "Channel 4 🇬🇧", id: "103" },
-  { name: "UKTV Play 🇬🇧", id: "357" },
-  { name: "Sky Go 🇬🇧", id: "29" },
-];
+export default function MediaFlowDashboard() {
+  const [items, setItems] = useState<any[]>([]);
+  const [radarrQueue, setRadarrQueue] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [newGroup, setNewGroup] = useState('');
 
-export default function Home() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);;
-  const [loading, setLoading] = useState(false);
-  const [view, setView] = useState("trending");
-  const [service, setService] = useState("");
-  const [mediaType, setMediaType] = useState("movie");
+  const fetchData = async (force = false) => {
+    setIsRefreshing(true);
+    try {
+      // 1. Fetch our filtered Elite List
+      const listRes = await fetch(force ? '/api/elite-list?force=true' : '/api/elite-list');
+      const listData = await listRes.json();
+      
+      // 2. Fetch Radarr Queue (Requires a small API route we'll make next)
+      const radarrRes = await fetch('/api/radarr-status');
+      const radarrData = await radarrRes.json();
 
-  useEffect(() => {
-    fetchDiscovery(view, service);
-  }, [mediaType]);
-
-  const fetchDiscovery = async (type: string, serviceId = "") => {
-    setLoading(true);
-    setView(type);
-    
-    let url = "";
-    if (serviceId) {
-      url = `https://api.themoviedb.org/3/discover/${mediaType}?with_watch_providers=${serviceId}&watch_region=GB&sort_by=popularity.desc`;
-    } else {
-      url = type === "trending" 
-        ? `https://api.themoviedb.org/3/trending/all/day?region=GB` 
-        : `https://api.themoviedb.org/3/${mediaType}/popular?region=GB`;
+      if (Array.isArray(listData)) setItems(listData);
+      if (Array.isArray(radarrData)) setRadarrQueue(radarrData);
+      
+    } catch (err) {
+      console.error("Sync error");
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
     }
-    
-    const res = await fetch(`/api/search?endpoint=${encodeURIComponent(url)}`);
-    const data = await res.json();
-    setResults(data);
-    setLoading(false);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query) return;
-    setLoading(true);
-    setView("search");
-    setService(""); 
-    const res = await fetch(`/api/search?q=${query}`);
-    const data = await res.json();
-    setResults(data.filter((item: any) => item.media_type !== 'person'));
-    setLoading(false);
-  };
-
-  const handleSave = async (item: any) => {
-    const title = item.title || item.name;
-    const res = await fetch('/api/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tmdb_id: item.id.toString(),
-        title: title,
-        media_type: item.media_type || (item.title ? 'movie' : 'tv'),
-        poster_path: item.poster_path
-      }),
-    });
-    const data = await res.json();
-    if (data.success) alert(`✅ Saved ${title}`);
-  };
+  useEffect(() => { fetchData(); }, []);
 
   return (
-    <main className="min-h-screen p-8 bg-gray-900 text-white font-sans">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-  <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-    MediaFlow
-  </h1>
-  
-  <div className="flex gap-2">
-    {/* ADD THIS LINK HERE */}
-    <a href="/settings" className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm transition border border-gray-700">
-      <span>⚙️</span> Groups
-    </a>
-
-    <a href="/my-list" className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-bold text-sm transition">
-      <span>📂</span> My Library
-    </a>
-  </div>
-</div>
-      
-      <div className="flex flex-wrap gap-4 mb-6 items-center bg-gray-800/50 p-4 rounded-2xl border border-gray-700">
-        <button onClick={() => { setService(""); fetchDiscovery("trending"); }} className={`px-4 py-2 rounded-xl text-sm font-bold ${view === 'trending' && !service ? 'bg-blue-600' : 'bg-gray-800'}`}>🔥 Trending</button>
-        <button onClick={() => { setService(""); fetchDiscovery("popular"); }} className={`px-4 py-2 rounded-xl text-sm font-bold ${view === 'popular' && !service ? 'bg-blue-600' : 'bg-gray-800'}`}>🌟 Popular</button>
+    <div className="min-h-screen bg-[#0a0f1a] text-white p-6 font-sans">
+      <div className="max-w-3xl mx-auto">
         
-        <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
-          <button onClick={() => setMediaType("movie")} className={`px-3 py-1 text-xs font-bold rounded ${mediaType === 'movie' ? 'bg-gray-700 text-blue-400' : 'text-gray-500'}`}>Movies</button>
-          <button onClick={() => setMediaType("tv")} className={`px-3 py-1 text-xs font-bold rounded ${mediaType === 'tv' ? 'bg-gray-700 text-blue-400' : 'text-gray-500'}`}>TV</button>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-[#00f2fe] to-[#4facfe] bg-clip-text text-transparent">
+            MediaFlow
+          </h1>
+          <div className="flex gap-3">
+            <button onClick={() => fetchData(true)} className={`p-2 rounded-lg bg-[#1f2937] ${isRefreshing ? 'animate-spin' : ''}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8m0-5v5h-5"/></svg>
+            </button>
+            <Link href="/settings" className="bg-[#1f2937] px-4 py-2 rounded-lg text-sm border border-gray-700">Settings</Link>
+          </div>
         </div>
 
-        <select 
-          value={service}
-          onChange={(e) => {
-            setService(e.target.value);
-            fetchDiscovery("discover", e.target.value);
-          }}
-          className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-        >
-          {SERVICES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
+        {/* Quick Add */}
+        <div className="flex gap-2 mb-10 bg-[#111827] p-2 rounded-xl border border-gray-800">
+          <input 
+            value={newGroup} 
+            onChange={(e) => setNewGroup(e.target.value)}
+            placeholder="Quick Add Elite Group..."
+            className="flex-1 bg-transparent px-4 py-2 text-sm focus:outline-none"
+          />
+          <button onClick={async () => {
+            await supabase.from('release_groups').insert([{ name: newGroup.toUpperCase() }]);
+            setNewGroup('');
+            fetchData(true);
+          }} className="bg-[#00f2fe] text-[#0a0f1a] px-6 py-2 rounded-lg text-xs font-bold uppercase">Add</button>
+        </div>
 
-      <form onSubmit={handleSearch} className="mb-12 flex gap-4">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search for something specific..."
-          className="w-full max-w-md px-5 py-3 rounded-2xl bg-gray-800 border-2 border-transparent focus:border-blue-500 outline-none transition-all"
-        />
-        <button type="submit" className="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold shadow-lg">
-          {loading ? "..." : "Search"}
-        </button>
-      </form>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-        {results.map((item: any) => {
-          const title = item.title || item.name;
-          const date = item.release_date || item.first_air_date;
-          const year = date ? date.substring(0, 4) : "N/A";
-          const typeLabel = item.media_type === 'tv' || !item.title ? 'TV' : 'Movie';
-
-          return (
-            <div key={item.id} className="group bg-gray-800 rounded-2xl overflow-hidden shadow-xl border border-gray-700 flex flex-col hover:border-blue-500/50 transition-all">
-              <div className="relative">
-                <img src={`https://image.tmdb.org/t/p/w500${item.poster_path}`} className="w-full aspect-[2/3] object-cover" alt={title} />
-                <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-bold uppercase text-white tracking-widest">{typeLabel}</div>
-              </div>
-              <div className="p-4 flex-grow flex flex-col justify-between">
-                <div>
-                  <h3 className="font-bold text-sm line-clamp-2 min-h-[2.5rem] mb-1">{title}</h3>
-                  <p className="text-[10px] text-gray-400 font-medium">{year}</p>
+        {/* Two-Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          {/* Column 1: Elite List */}
+          <div>
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-[#00f2fe] rounded-full animate-pulse"></span>
+              Elite Filter Results
+            </h2>
+            <div className="space-y-3">
+              {items.map((item, i) => (
+                <div key={i} className="bg-[#111827] border border-gray-800 p-4 rounded-xl">
+                  <p className="text-sm font-medium text-gray-200 truncate">{item.title}</p>
+                  <p className="text-[10px] text-[#00f2fe] mt-1 font-mono uppercase">{item.imdbId}</p>
                 </div>
-                <button onClick={() => handleSave(item)} className="mt-4 w-full py-2 bg-blue-600/10 hover:bg-emerald-500 text-blue-400 hover:text-white rounded-xl text-xs font-black transition-all border border-blue-600/20 uppercase tracking-tighter shadow-md">+ Add</button>
-              </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
+
+          {/* Column 2: Radarr Live Activity */}
+          <div>
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+              Radarr Activity
+            </h2>
+            <div className="space-y-3">
+              {radarrQueue.length === 0 ? (
+                <p className="text-gray-600 text-xs italic">No active downloads...</p>
+              ) : (
+                radarrQueue.map((q, i) => (
+                  <div key={i} className="bg-[#111827] border border-orange-900/30 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-orange-200 truncate">{q.title}</p>
+                    <div className="flex justify-between mt-2">
+                       <span className="text-[9px] text-orange-500 font-bold uppercase">{q.status}</span>
+                       <span className="text-[9px] text-gray-500">{q.sizeleft} left</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
