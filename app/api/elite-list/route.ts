@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     for (const group of groupList) {
       for (const e of endpoints) {
         try {
-          const searchUrl = `${e.url}&q=${group}&limit=100`;
+          const searchUrl = `${e.url}&q=${group}&limit=50`;
           const res = await fetch(searchUrl, { next: { revalidate: 0 } });
           const data = await res.json();
           const found = data.channel?.item || [];
@@ -62,28 +62,28 @@ export async function GET(request: Request) {
 
     // --- SMART EXTRACTION WITH IMDB LOOKUP ---
     // Split items into those that have IDs and those that don't
-    const formattedData = await Promise.all(allItems.map(async (item: any, index: number) => {
+    const formattedData = await Promise.all(allItems.slice(0, 30).map(async (item: any) => {
       const title = item.title || "";
+      const guid = item.guid?.['#text'] || item.guid || "";
       let cleanId = "N/A";
 
-      // A. Check indexer raw data first (Super fast)
-      const searchString = JSON.stringify(item);
-      const idMatch = searchString.match(/tt(\d{7,9})/);
-      if (idMatch) cleanId = idMatch[0];
-
-      // B. ONLY perform the slow IMDb lookup for the first 20 items 
-      // This prevents the "10-second death"
-      if (cleanId === "N/A" && index < 20) {
-        cleanId = await getImdbByTitle(title);
+      // 1. Check the whole item for a tt number
+      const match = JSON.stringify(item).match(/tt(\d{7,9})/);
+      
+      // 2. If no tt number found, check the GUID link (AltHub/Scene style)
+      if (match) {
+        cleanId = match[0];
+      } else if (guid.includes('imdb')) {
+        // If the guid is something like ...details/tt1234567
+        const guidMatch = guid.match(/tt(\d{7,9})/);
+        if (guidMatch) cleanId = guidMatch[0];
       }
 
       return {
         title: title,
         imdbId: cleanId,
-        genre: "Checking...", // Simplified to save time
-        service: ["AMZN", "NF", "DSNP", "ATVP", "PCOK"].find(s => title.toUpperCase().includes(s)) || "WEB",
         pubDate: item.pubDate,
-        guid: item.guid?.['#text'] || item.guid || ""
+        guid: guid
       };
     }));
 

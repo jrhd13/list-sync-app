@@ -23,7 +23,7 @@ export async function GET() {
     
     // 2. Search your main indexer (Using Geek as the primary source for the list)
     const geekKey = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV"; 
-    const res = await fetch(`https://api.nzbgeek.info/api?t=search&cat=2000&apikey=${geekKey}&q=${groupList[0]}&limit=100&o=json`);
+    const res = await fetch(`https://api.nzbgeek.info/api?t=search&cat=2000&apikey=${geekKey}&q=${groupList[0]}&limit=50&o=json`);
     const data = await res.json();
     const items = data.channel?.item || [];
 
