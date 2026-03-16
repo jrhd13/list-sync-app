@@ -61,29 +61,28 @@ export async function GET(request: Request) {
     }
 
     // --- SMART EXTRACTION WITH IMDB LOOKUP ---
-    // We use Promise.all because getImdbByTitle is an async (network) call
-    const formattedData = await Promise.all(allItems.map(async (item: any) => {
+    // Split items into those that have IDs and those that don't
+    const formattedData = await Promise.all(allItems.map(async (item: any, index: number) => {
       const title = item.title || "";
       let cleanId = "N/A";
 
-      // Step A: Check if indexer actually provided it (the easy way)
+      // A. Check indexer raw data first (Super fast)
       const searchString = JSON.stringify(item);
-      const match = searchString.match(/tt(\d{7,9})/);
-      if (match) {
-        cleanId = match[0];
-      }
+      const idMatch = searchString.match(/tt(\d{7,9})/);
+      if (idMatch) cleanId = idMatch[0];
 
-      // Step B: If still N/A, use our OMDb "Brain"
-      if (cleanId === "N/A" || cleanId === "tt0000000") {
+      // B. ONLY perform the slow IMDb lookup for the first 20 items 
+      // This prevents the "10-second death"
+      if (cleanId === "N/A" && index < 20) {
         cleanId = await getImdbByTitle(title);
       }
 
       return {
-        title: item.title,
+        title: title,
         imdbId: cleanId,
-        service: ["AMZN", "NF", "DSNP", "ATVP", "PCOK", "HMAX"].find(s => title.toUpperCase().includes(s)) || "WEB",
+        genre: "Checking...", // Simplified to save time
+        service: ["AMZN", "NF", "DSNP", "ATVP", "PCOK"].find(s => title.toUpperCase().includes(s)) || "WEB",
         pubDate: item.pubDate,
-        size: item.enclosure?.['@attributes']?.length || 0,
         guid: item.guid?.['#text'] || item.guid || ""
       };
     }));

@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "app/api/elite-list/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/radarr-list/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
