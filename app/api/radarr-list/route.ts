@@ -2,21 +2,23 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // 1. Get the data from your existing elite-list API
-    // We use the full URL to ensure it works when Radarr calls it from the outside
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : "http://localhost:3000";
+    // 1. Use your REAL Vercel URL here
+    // Replace 'your-app-name.vercel.app' with your actual production link
+    const domain = "https://list-sync-app-w1hi-eight.vercel.app/"; 
+    
+    const res = await fetch(`${domain}/api/elite-list?force=true`, {
+      cache: 'no-store' // This ensures it doesn't get stuck on old data
+    });
 
-    const res = await fetch(`${baseUrl}/api/elite-list?force=true`);
     const items = await res.json();
 
     if (!Array.isArray(items)) {
+      console.log("Elite list did not return an array");
       return NextResponse.json([]);
     }
 
-    // 2. Format for Radarr (StevenLu format)
-    // Radarr only needs the title and the IMDb ID to add a movie
+    // 2. Format for Radarr
+    // We only take items that have a valid IMDb ID
     const formattedForRadarr = items
       .filter(item => item.imdbId && item.imdbId !== "N/A")
       .map(item => ({
@@ -25,6 +27,7 @@ export async function GET() {
       }));
 
     return NextResponse.json(formattedForRadarr);
+
   } catch (err) {
     console.error("Radarr List Error:", err);
     return NextResponse.json([], { status: 500 });
