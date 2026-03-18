@@ -29,7 +29,7 @@ export default function Dashboard() {
 const addToRadarr = async (item: any) => {
   const movieData = {
     title: item.title.split(/(\d{4})/)[0].replace(/\./g, ' '),
-    qualityProfileId: 1,
+    qualityProfileId: 10,
     titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
     tmdbId: 0,
     year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
