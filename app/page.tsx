@@ -33,7 +33,7 @@ const addToRadarr = async (item: any) => {
     titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
     tmdbId: 0,
     year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
-    rootFolderPath: "/storage/realdebrid-zurg/movies",
+    rootFolderPath: "/storage/symlinks/movies",
     monitored: true,
     addOptions: { searchForMovie: true }
   };
