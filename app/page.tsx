@@ -39,7 +39,7 @@ const addToRadarr = async (item: any) => {
   // Instead of adding the movie directly, we send a "Search" command
   const searchData = {
     title: cleanTitle,
-    qualityProfileId: 4, // Your Profile ID
+    qualityProfileId: 10, // Your Profile ID
     rootFolderPath: "/storage/symlinks/movies",
     year: movieYear,
     tmdbId: item.tmdbId || 0, // We send it if we have it
