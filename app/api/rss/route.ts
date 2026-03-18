@@ -3,6 +3,20 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
+// Helper to stop special characters like & from breaking the XML
+const escapeXml = (unsafe: string) => {
+  return unsafe.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '"': return '&quot;';
+      case "'": return '&apos;';
+      default: return c;
+    }
+  });
+};
+
 async function getTmdbMetadata(title: string, apiKey: string) {
   try {
     const clean = title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
@@ -49,32 +63,38 @@ export async function GET() {
 
     const feedItems = await Promise.all(uniqueData.map(async (item: any) => {
       const meta = await getTmdbMetadata(item.title, TMDB_KEY);
+      const safeTitle = escapeXml(item.title || "Untitled");
+      const safeLink = escapeXml(item.link || "");
+      
       return `
         <item>
-          <title>${item.title.replace(/&/g, '&amp;')}</title>
-          <link>${item.link || ''}</link>
-          <description>Elite Release from ${item.title.split('-').pop()}</description>
+          <title>${safeTitle}</title>
+          <link>${safeLink}</link>
+          <description>Elite Release</description>
           ${meta.tmdbId ? `<tmdbid>${meta.tmdbId}</tmdbid>` : ''}
           ${meta.imdbId ? `<imdbid>${meta.imdbId}</imdbid>` : ''}
-          <pubDate>${item.pubDate}</pubDate>
-          <guid isPermaLink="false">${item.guid?.['#text'] || item.guid || Math.random()}</guid>
+          <pubDate>${item.pubDate || new Date().toUTCString()}</pubDate>
+          <guid isPermaLink="false">${escapeXml(item.guid?.['#text'] || item.guid || String(Math.random()))}</guid>
         </item>`;
     }));
 
     const rssFeed = `<?xml version="1.0" encoding="UTF-8"?>
-    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <rss version="2.0">
       <channel>
-        <title>MediaFlow Elite Auto-Pilot</title>
+        <title>MediaFlow Elite</title>
         <link>https://list-sync-app-w1hi-eight.vercel.app</link>
-        <description>Automated Movie Curation Feed</description>
+        <description>Automated Movie Curation</description>
         ${feedItems.join('')}
       </channel>
     </rss>`;
 
     return new NextResponse(rssFeed, {
-      headers: { 'Content-Type': 'application/xml' },
+      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
     });
   } catch (error) {
-    return new NextResponse('<error>Feed Generation Failed</error>', { status: 500 });
+    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><error>Feed Generation Failed</error>', { 
+      status: 500,
+      headers: { 'Content-Type': 'application/xml' } 
+    });
   }
 }
