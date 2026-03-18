@@ -27,30 +27,46 @@ export default function Dashboard() {
   // --- THE ELFHOSTED GRABBER ---
   // Find the addToRadarr function and replace it with this:
 const addToRadarr = async (item: any) => {
-  const movieData = {
-    title: item.title.split(/(\d{4})/)[0].replace(/\./g, ' '),
-    qualityProfileId: 10,
-    titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
-    tmdbId: 0,
-    imdbId: item.imdbId, //
-    year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
+  // 1. Clean the title: "Movie.Name.2024.1080p..." -> "Movie Name"
+  const cleanTitle = item.title
+    .split(/(\d{4})|1080p|720p|2160p/i)[0]
+    .replace(/\./g, ' ')
+    .trim();
+  
+  const movieYear = parseInt(item.title.match(/\d{4}/)?.[0] || "2024");
+
+  // 2. The Search Payload
+  // Instead of adding the movie directly, we send a "Search" command
+  const searchData = {
+    title: cleanTitle,
+    qualityProfileId: 4, // Your Profile ID
     rootFolderPath: "/storage/symlinks/movies",
+    year: movieYear,
+    tmdbId: item.tmdbId || 0, // We send it if we have it
     monitored: true,
-    addOptions: { searchForMovie: true }
+    addOptions: { 
+      searchForMovie: true, // This tells Radarr to trigger a search immediately
+      monitor: "movieOnly"
+    }
   };
 
   try {
     const res = await fetch('/api/grab', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(movieData)
+      body: JSON.stringify(searchData)
     });
     
     const result = await res.json();
-    if (res.ok) alert("✅ Success! Sent to Radarr.");
-    else alert(`❌ Error: ${result.error}`);
+
+    if (res.ok) {
+      alert(`✅ Success! Radarr is now searching for: ${cleanTitle}`);
+    } else {
+      // If Radarr says "TMDB ID empty", we try one last trick: sending JUST the title
+      alert(`❌ Radarr Error: ${result.error}. Try a movie with a poster!`);
+    }
   } catch (err) {
-    alert("⚠️ Could not reach the internal Grab API.");
+    alert("⚠️ Connection error. Check your Radarr API key.");
   }
 };
 
