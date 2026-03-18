@@ -1,190 +1,104 @@
-'use client';
-import { useEffect, useState } from 'react';
+"use client";
+import React, { useState, useEffect } from 'react';
 
-export default function Dashboard() {
+export default function EliteDashboard() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [activeEra, setActiveEra] = useState("");
-  const [activeGenre, setActiveGenre] = useState("");
 
-  // --- THE FETCH LOGIC ---
-  const loadData = (year = activeEra, genre = activeGenre) => {
+  // 1. Fetching the Super-Feed (Geek Endorsed + Planet)
+  const fetchMovies = async () => {
     setLoading(true);
-    setActiveEra(year);
-    setActiveGenre(genre);
-    fetch(`/api/elite-list?year=${year}&genre=${genre}`)
-      .then(res => res.json())
-      .then(data => {
-        setItems(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  // --- THE ELFHOSTED GRABBER ---
-  // Find the addToRadarr function and replace it with this:
-const addToRadarr = async (item: any) => {
-  // 1. Clean the title: "Movie.Name.2024.1080p..." -> "Movie Name"
-  const cleanTitle = item.title
-    .split(/(\d{4})|1080p|720p|2160p/i)[0]
-    .replace(/\./g, ' ')
-    .trim();
-  
-  const movieYear = parseInt(item.title.match(/\d{4}/)?.[0] || "2024");
-
-  // 2. The Search Payload
-  // Instead of adding the movie directly, we send a "Search" command
-  const searchData = {
-    title: cleanTitle,
-    qualityProfileId: 10, // Your Profile ID
-    rootFolderPath: "/storage/symlinks/movies",
-    year: movieYear,
-    tmdbId: item.tmdbId || 0, // We send it if we have it
-    monitored: true,
-    addOptions: { 
-      searchForMovie: true, // This tells Radarr to trigger a search immediately
-      monitor: "movieOnly"
+    try {
+      const res = await fetch('/api/elite-list');
+      const data = await res.json();
+      setItems(data);
+    } catch (err) {
+      console.error("Failed to load movies");
+    } finally {
+      setLoading(false);
     }
   };
 
-  try {
-    const res = await fetch('/api/grab', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(searchData)
-    });
+  useEffect(() => { fetchMovies(); }, []);
+
+  // 2. The "Grab" Logic (Manual Add to Radarr)
+  const addToRadarr = async (item: any) => {
+    // Clean title for Radarr (removes dots and year for the search string)
+    const cleanTitle = item.title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
     
-    const result = await res.json();
+    const movieData = {
+      title: cleanTitle,
+      qualityProfileId: 10, // Change to 4 or 6 if your Radarr uses a different ID
+      rootFolderPath: "/storage/symlinks/movies", // Matches your ElfHosted symlinks
+      tmdbId: item.tmdbId,
+      year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
+      monitored: true,
+      addOptions: { searchForMovie: true }
+    };
 
-    if (res.ok) {
-      alert(`✅ Success! Radarr is now searching for: ${cleanTitle}`);
-    } else {
-      // If Radarr says "TMDB ID empty", we try one last trick: sending JUST the title
-      alert(`❌ Radarr Error: ${result.error}. Try a movie with a poster!`);
+    try {
+      const res = await fetch('/api/grab', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(movieData)
+      });
+      
+      if (res.ok) {
+        alert(`✅ Success! ${cleanTitle} added to Radarr.`);
+      } else {
+        const result = await res.json();
+        alert(`❌ Error: ${result.error}`);
+      }
+    } catch (err) {
+      alert("⚠️ Connection error to Radarr API.");
     }
-  } catch (err) {
-    alert("⚠️ Connection error. Check your Radarr API key.");
-  }
-};
+  };
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center font-black text-[#4facfe] animate-pulse italic uppercase tracking-tighter">
-      Scanning Elite Databases...
-    </div>
-  );
+  if (loading) return <div className="p-20 text-center text-white">Loading Elite Releases...</div>;
 
   return (
-    <main className="min-h-screen bg-[#030712] text-white p-6 md:p-12 font-sans">
-      
-      {/* HEADER SECTION */}
-      <div className="mb-12 flex justify-between items-end">
-        <div>
-          <h1 className="text-4xl font-black tracking-tighter italic uppercase">
-            MediaFlow<span className="text-[#4facfe]">Elite</span>
-          </h1>
-          <p className="text-gray-500 text-[9px] font-bold uppercase tracking-[0.4em] mt-2">
-            Automated Curation v2.0
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-black text-white p-6">
+      <h1 className="text-3xl font-bold mb-8 text-center bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+        MEDIAFLOW ELITE
+      </h1>
 
-      {/* ERA SELECTOR (TIMELINE) */}
-      <div className="mb-8">
-        <h2 className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-4 italic">Jump to Era</h2>
-        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-          {['', '2020', '2010', '2000', '1990', '1980', '1970'].map(era => (
-            <button 
-              key={era} 
-              onClick={() => loadData(era, activeGenre)}
-              className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeEra === era ? 'bg-[#4facfe] text-black shadow-lg shadow-[#4facfe]/20' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-600'}`}
-            >
-              {era ? `${era}s` : 'Latest Drops'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* FILTER & SEARCH BAR */}
-      <div className="mb-12 flex flex-col md:flex-row gap-4 items-center bg-[#111827]/40 p-4 rounded-[2rem] border border-gray-800">
-        
-        {/* Genre Dropdown */}
-        <select 
-          value={activeGenre}
-          onChange={(e) => loadData(activeEra, e.target.value)}
-          className="bg-[#030712] border border-gray-800 p-3 rounded-2xl text-[10px] font-black uppercase text-[#4facfe] outline-none cursor-pointer hover:border-[#4facfe]/50 transition-all w-full md:w-48 appearance-none text-center"
-        >
-          <option value="">All Genres</option>
-          <option value="Action">Action</option>
-          <option value="Sci-Fi">Sci-Fi</option>
-          <option value="Horror">Horror</option>
-          <option value="Comedy">Comedy</option>
-          <option value="Thriller">Thriller</option>
-        </select>
-
-        {/* Text Search */}
-        <input 
-          type="text" 
-          placeholder="Search within results (e.g. NTb, Flux...)" 
-          className="bg-[#030712] border border-gray-800 p-3 rounded-2xl w-full md:flex-1 text-sm focus:border-[#4facfe] outline-none transition-all placeholder:text-gray-700"
-          onChange={(e) => setSearch(e.target.value.toLowerCase())}
-        />
-      </div>
-
-      {/* MOVIE GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-        {items
-          .filter(i => i.title.toLowerCase().includes(search))
-          .map((item: any) => (
-            <div key={item.guid} className="group relative">
-              <div className="aspect-[2/3] bg-gray-900 rounded-[2.5rem] overflow-hidden border border-gray-800 group-hover:border-[#4facfe]/40 transition-all duration-500 shadow-2xl relative">
-                
-                {item.posterPath ? (
-                  <img 
-                    src={`https://image.tmdb.org/t/p/w500${item.posterPath}`} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 opacity-90 group-hover:opacity-100" 
-                    alt="poster" 
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-800 font-black italic text-5xl">?</div>
-                )}
-                
-                {/* OVERLAY ON HOVER */}
-                <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center p-8 text-center backdrop-blur-sm">
-                  <div className="text-[#4facfe] font-black text-3xl mb-2 italic">
-                    {item.score > 0 ? item.score.toFixed(1) : 'NR'}
-                  </div>
-                  <div className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em] mb-6">TMDB Rating</div>
-                  <button 
-                    onClick={() => addToRadarr(item)}
-                    className="bg-white text-black font-black text-[10px] px-8 py-4 rounded-2xl uppercase tracking-[0.2em] hover:bg-[#4facfe] transition-colors shadow-xl"
-                  >
-                    Grab Release
-                  </button>
-                </div>
-
-                {/* TAGS */}
-                <div className="absolute bottom-6 left-6 right-6 flex justify-between items-center">
-                   <div className="bg-black/80 backdrop-blur-md px-3 py-1 rounded-lg text-[8px] font-black border border-white/10 uppercase italic text-[#4facfe]">
-                     {item.title.split('-').pop()}
-                   </div>
-                </div>
-              </div>
-
-              {/* TITLE UNDER POSTER */}
-              <div className="mt-6 px-4">
-                <h3 className="font-bold text-[11px] uppercase tracking-tighter line-clamp-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                  {item.title.split(/(\d{4})/)[0].replace(/\./g, ' ')}
-                </h3>
-                <p className="text-[8px] font-black text-gray-600 mt-1 uppercase tracking-widest">
-                  {new Date(item.pubDate).toLocaleDateString()}
-                </p>
-              </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {items.map((item, idx) => (
+          <div key={idx} className="bg-gray-900 rounded-3xl p-4 border border-gray-800 flex flex-col justify-between">
+            <div>
+              {item.posterPath ? (
+                <img 
+                  src={`https://image.tmdb.org/t/p/w500${item.posterPath}`} 
+                  alt="poster" 
+                  className="rounded-2xl w-full h-auto mb-4"
+                />
+              ) : (
+                <div className="w-full h-64 bg-gray-800 rounded-2xl flex items-center justify-center mb-4">No Poster</div>
+              )}
+              <h3 className="text-sm font-bold truncate">{item.title}</h3>
+              <p className="text-blue-400 text-xs mt-1">⭐ {item.score || 'N/A'} TMDB Rating</p>
             </div>
-          ))}
+
+            <div className="flex flex-col gap-2 mt-4">
+              {/* BUTTON 1: GRAB */}
+              <button 
+                onClick={() => addToRadarr(item)}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all"
+              >
+                GRAB RELEASE
+              </button>
+              
+              {/* BUTTON 2: SEARCH RADARR (Deep Link) */}
+              <button 
+                onClick={() => window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=${encodeURIComponent(item.title)}`, '_blank')}
+                className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-bold uppercase rounded-xl border border-gray-700 transition-all"
+              >
+                🔍 View in Radarr
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
-    </main>
+    </div>
   );
 }

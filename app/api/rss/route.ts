@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// Helper to stop special characters like & from breaking the XML
 const escapeXml = (unsafe: string) => {
   return unsafe.replace(/[<>&"']/g, (c) => {
     switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '"': return '&quot;';
-      case "'": return '&apos;';
-      default: return c;
+      case '<': return '&lt;'; case '>': return '&gt;';
+      case '&': return '&amp;'; case '"': return '&quot;';
+      case "'": return '&apos;'; default: return c;
     }
   });
 };
@@ -24,53 +19,42 @@ async function getTmdbMetadata(title: string, apiKey: string) {
     const data = await res.json();
     const movie = data.results?.[0];
     if (!movie) return { tmdbId: null, imdbId: null };
-
     const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`);
     const details = await detailRes.json();
-    return {
-      tmdbId: movie.id,
-      imdbId: details.imdb_id || null
-    };
+    return { tmdbId: movie.id, imdbId: details.imdb_id || null };
   } catch { return { tmdbId: null, imdbId: null }; }
 }
 
 export async function GET() {
   try {
-    const { data: dbGroups } = await supabase.from('release_groups').select('name');
-    const selectedGroups = dbGroups?.sort(() => 0.5 - Math.random()).slice(0, 5).map(g => g.name.toUpperCase()) || [];
+   // --- PASTE YOUR KEYS HERE ---
+const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
+const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
+const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df"; // <--- ADD THIS LINE
 
-    // --- PASTE YOUR KEYS HERE ---
-    const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
-    const keys = { 
-        geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV", 
-        planet: "618518524733b41d3487ca5a8d7a29df", 
-        scene: "b29985ef096f4e03ed11073f3f825aca" 
-    };
-
-    const endpoints = [
-      `https://api.nzbgeek.info/api?t=search&cat=2000&apikey=${keys.geek}&o=json`,
-      `https://nzbplanet.net/api?t=movie&apikey=${keys.planet}&o=json`,
-      `https://scenenzbs.com/api?t=movie&apikey=${keys.scene}&o=json`
-    ];
-
-    const searchPromises = selectedGroups.flatMap(group => 
-      endpoints.map(url => fetch(`${url}&q=${group}`).then(res => res.json()).catch(() => ({})))
+const endpoints = [
+  // 1. Geek Endorsed Movie Search
+  `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
+  
+  // 2. Your Personal NZBPlanet Feed (Converted to API format for better TMDB matching)
+  `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
+];
+    const results = await Promise.all(
+      endpoints.map(url => fetch(url).then(res => res.json()).catch(() => ({})))
     );
 
-    const results = await Promise.all(searchPromises);
     const allItems = results.flatMap(data => data.channel?.item || []);
-    const uniqueData = Array.from(new Map(allItems.map(item => [item.title, item])).values()).slice(0, 15);
+    
+    // De-duplicate movies found on both sites
+    const uniqueData = Array.from(new Map(allItems.map(item => [item.title, item])).values()).slice(0, 50);
 
     const feedItems = await Promise.all(uniqueData.map(async (item: any) => {
       const meta = await getTmdbMetadata(item.title, TMDB_KEY);
-      const safeTitle = escapeXml(item.title || "Untitled");
-      const safeLink = escapeXml(item.link || "");
-      
       return `
         <item>
-          <title>${safeTitle}</title>
-          <link>${safeLink}</link>
-          <description>Elite Release</description>
+          <title>${escapeXml(item.title)}</title>
+          <link>${escapeXml(item.link || '')}</link>
+          <description>Elite Super-Feed Release</description>
           ${meta.tmdbId ? `<tmdbid>${meta.tmdbId}</tmdbid>` : ''}
           ${meta.imdbId ? `<imdbid>${meta.imdbId}</imdbid>` : ''}
           <pubDate>${item.pubDate || new Date().toUTCString()}</pubDate>
@@ -81,20 +65,14 @@ export async function GET() {
     const rssFeed = `<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0">
       <channel>
-        <title>MediaFlow Elite</title>
-        <link>https://list-sync-app-w1hi-eight.vercel.app</link>
-        <description>Automated Movie Curation</description>
+        <title>MediaFlow Super-Feed</title>
+        <description>Combined Geek Endorsed + Planet RSS</description>
         ${feedItems.join('')}
       </channel>
     </rss>`;
 
-    return new NextResponse(rssFeed, {
-      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
-    });
+    return new NextResponse(rssFeed, { headers: { 'Content-Type': 'application/xml; charset=utf-8' } });
   } catch (error) {
-    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><error>Feed Generation Failed</error>', { 
-      status: 500,
-      headers: { 'Content-Type': 'application/xml' } 
-    });
+    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><error>Failed</error>', { status: 500 });
   }
 }
