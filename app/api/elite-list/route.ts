@@ -24,7 +24,8 @@ async function getTmdbMetadata(title: string, apiKey: string) {
     return {
       score: movie.vote_average,
       poster: movie.poster_path,
-      id: details.imdb_id || "N/A"
+      id: details.imdb_id || "N/A",
+      tmdbId: movie.id
     };
   } catch { return { score: 0, poster: null, id: "N/A" }; }
 }
@@ -87,6 +88,7 @@ export async function GET(request: Request) {
       return {
         title: itemTitle,
         imdbId: meta.id !== "N/A" ? meta.id : (JSON.stringify(item).match(/tt(\d{7,9})/)?.[0] || "N/A"),
+        tmdbId: MediaStreamTrackEvent.tmdbId,
         posterPath: meta.poster,
         score: meta.score,
         pubDate: item.pubDate || new Date().toISOString(),
