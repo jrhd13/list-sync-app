@@ -33,12 +33,16 @@ const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
 const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df"; // <--- ADD THIS LINE
 
 const endpoints = [
-  // 1. Geek Endorsed Movie Search
-  `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-  
-  // 2. Your Personal NZBPlanet Feed (Converted to API format for better TMDB matching)
-  `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
-];
+      // 1. Geek Endorsed Movies (Curated by staff)
+      `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
+      
+      // 2. NEW: Geek Rated Movies (Highly rated by the community)
+      `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
+      
+      // 3. Your Personal NZBPlanet Feed
+      `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
+    ];
+    
     const results = await Promise.all(
       endpoints.map(url => fetch(url).then(res => res.json()).catch(() => ({})))
     );

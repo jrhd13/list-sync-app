@@ -53,9 +53,14 @@ export async function GET(request: Request) {
     };
 
     const endpoints = [
-      { name: 'Geek', url: `https://api.nzbgeek.info/api?t=search&cat=2000&apikey=${keys.geek}&o=json` },
-      { name: 'Planet', url: `https://nzbplanet.net/api?t=movie&apikey=${keys.planet}&o=json` },
-      { name: 'Scene', url: `https://scenenzbs.com/api?t=movie&apikey=${keys.scene}&o=json` }
+      // 1. Geek Endorsed Movies (Curated by staff)
+      `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
+      
+      // 2. NEW: Geek Rated Movies (Highly rated by the community)
+      `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
+      
+      // 3. Your Personal NZBPlanet Feed
+      `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
     ];
 
     const searchPromises = selectedGroups.flatMap(group => {
