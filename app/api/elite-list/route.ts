@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// 1. Updated Interface to include tmdbId
-interface NZBItem {
+// 1. This tells TypeScript what the NZBGeek/Planet data looks like
+interface RssItem {
   title?: string;
-  pubDate?: string;
-  guid?: any;
-  tmdbId?: number; // Added this
-  [key: string]: any; 
+  link?: string;
+  [key: string]: unknown; // Allows for extra hidden data
 }
 
+// 2. TMDB Fetcher logic for your Dashboard posters and scores
 async function getTmdbMetadata(title: string, apiKey: string) {
   try {
     const clean = title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
@@ -19,95 +17,70 @@ async function getTmdbMetadata(title: string, apiKey: string) {
     const data = await res.json();
     const movie = data.results?.[0];
     
-    if (!movie) return { score: 0, poster: null, id: "N/A", tmdbId: 0 };
+    if (!movie) return null;
 
-    const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`);
-    const details = await detailRes.json();
-    
     return {
-      score: movie.vote_average,
-      poster: movie.poster_path,
-      id: details.imdb_id || "N/A",
-      tmdbId: movie.id // This is the ID Radarr was missing!
+      tmdbId: movie.id,
+      posterPath: movie.poster_path,
+      score: movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'
     };
-  } catch { 
-    return { score: 0, poster: null, id: "N/A", tmdbId: 0 }; 
+  } catch {
+    return null;
   }
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const yearParam = searchParams.get('year') || ""; 
-  const genreParam = searchParams.get('genre') || "";
-
+export async function GET() {
   try {
-    const { data: dbGroups } = await supabase.from('release_groups').select('name');
-    const selectedGroups = dbGroups?.sort(() => 0.5 - Math.random()).slice(0, 6).map(g => g.name.toUpperCase()) || [];
-
-    // --- PASTE YOUR KEYS HERE ---
+    // 👇 3. PASTE YOUR ACTUAL KEYS HERE 👇
     const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
-    const keys = { 
-      geek: "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV", 
-      planet: "618518524733b41d3487ca5a8d7a29df",
-      scene: "b29985ef096f4e03ed11073f3f825aca" 
-    };
+    const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
+    const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df";
 
+    // All three feeds combined for maximum coverage
     const endpoints = [
-      // 1. Geek Endorsed Movies (Curated by staff)
       `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      
-      // 2. NEW: Geek Rated Movies (Highly rated by the community)
       `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      
-      // 3. Your Personal NZBPlanet Feed
       `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
     ];
 
-    const searchPromises = selectedGroups.flatMap(group => {
-      const query = [yearParam, genreParam, group].filter(Boolean).join('+');
-      return endpoints.map(e => 
-        fetch(`${e.url}&q=${query}`, { signal: AbortSignal.timeout(7000) })
-          .then(res => res.json())
-          .catch(() => ({ channel: { item: [] } }))
-      );
-    });
+    // Fetch from all sources at once
+    const results = await Promise.all(
+      endpoints.map(url => fetch(url).then(res => res.json()).catch(() => ({})))
+    );
 
-    const results = await Promise.all(searchPromises);
-    const allItems: NZBItem[] = results.flatMap(data => data.channel?.item || []);
+    // Extract the items
+    const allItems: RssItem[] = results.flatMap(data => data.channel?.item || []);
     
-    const uniqueData = Array.from(new Map(allItems.map(item => [item.title || '', item])).values());
-    
-    uniqueData.sort((a, b) => {
-      const dateA = a.pubDate ? new Date(a.pubDate).getTime() : 0;
-      const dateB = b.pubDate ? new Date(b.pubDate).getTime() : 0;
-      return dateB - dateA;
+    // De-duplicate movies so you don't see the same movie twice on your dashboard
+    const uniqueMap = new Map<string, RssItem>();
+    allItems.forEach(item => {
+      if (item.title) uniqueMap.set(item.title, item);
     });
+    const uniqueData = Array.from(uniqueMap.values()).slice(0, 40); // Limit to 40 for speed
 
-    let lookupCount = 0;
-    const finalData = await Promise.all(uniqueData.slice(0, 25).map(async (item) => {
-      let meta = { score: 0, poster: null, id: "N/A", tmdbId: 0 };
-      const itemTitle = item.title || "Unknown Release";
-
-      if (lookupCount < 12) {
-        lookupCount++;
-        meta = await getTmdbMetadata(itemTitle, TMDB_KEY);
-      }
+    // Attach TMDB Posters and IDs to send to your UI
+    const feedItems = await Promise.all(uniqueData.map(async (item) => {
+      // TypeScript safety check
+      if (!item.title) return null; 
       
-      const guidValue = item.guid?.['#text'] || item.guid || "";
-
+      const meta = await getTmdbMetadata(item.title, TMDB_KEY);
+      
       return {
-        title: itemTitle,
-        imdbId: meta.id !== "N/A" ? meta.id : (JSON.stringify(item).match(/tt(\d{7,9})/)?.[0] || "N/A"),
-        tmdbId: meta.tmdbId, // Passing the ID to the frontend
-        posterPath: meta.poster,
-        score: meta.score,
-        pubDate: item.pubDate || new Date().toISOString(),
-        guid: guidValue
+        title: item.title,
+        link: item.link,
+        tmdbId: meta?.tmdbId || null,
+        posterPath: meta?.posterPath || null,
+        score: meta?.score || null,
       };
     }));
 
-    return NextResponse.json(finalData);
+    // Remove any items that failed to load properly
+    const validItems = feedItems.filter(item => item !== null && item.tmdbId !== null);
+
+    // Send perfectly clean data back to the Dashboard
+    return NextResponse.json(validItems);
+    
   } catch (error) {
-    return NextResponse.json({ error: "Aggregator Error" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch elite list" }, { status: 500 });
   }
 }
