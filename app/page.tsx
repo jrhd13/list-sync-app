@@ -32,6 +32,7 @@ const addToRadarr = async (item: any) => {
     qualityProfileId: 10,
     titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
     tmdbId: 0,
+    imdbId: item.imdbId, //
     year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
     rootFolderPath: "/storage/symlinks/movies",
     monitored: true,
