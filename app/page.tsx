@@ -1,8 +1,16 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
+// 👇 1. This tells TypeScript exactly what "item" is so it stops complaining 👇
+interface MovieItem {
+  title: string;
+  tmdbId?: number;
+  posterPath?: string;
+  score?: number;
+}
+
 export default function EliteDashboard() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<MovieItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -31,14 +39,15 @@ export default function EliteDashboard() {
     fetchMovies();
   }, []);
 
-  const addToRadarr = async (item: any) => {
+  // 👇 2. Replaced "any" with "MovieItem" here 👇
+  const addToRadarr = async (item: MovieItem) => {
     const cleanTitle = item.title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
     
     const movieData = {
       title: cleanTitle,
       qualityProfileId: 10, // Change to 4 or 6 if your Radarr uses a different ID
       rootFolderPath: "/storage/symlinks/movies",
-      tmdbId: item.tmdbId,
+      tmdbId: item.tmdbId || 0,
       year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
       monitored: true,
       addOptions: { searchForMovie: true }
@@ -64,7 +73,6 @@ export default function EliteDashboard() {
     }
   };
 
-  // --- LOADING SKELETON UI ---
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white p-6 font-sans">
@@ -92,7 +100,6 @@ export default function EliteDashboard() {
     );
   }
 
-  // --- MAIN DASHBOARD UI ---
   return (
     <div className="min-h-screen bg-black text-white p-6 font-sans relative">
       
@@ -111,11 +118,13 @@ export default function EliteDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
+        {/* 👇 3. Used a safer key and added eslint-disable for the img tag 👇 */}
         {items.map((item, idx) => (
-          <div key={idx} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between hover:border-gray-700 transition-colors group">
+          <div key={`${item.tmdbId}-${idx}`} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between hover:border-gray-700 transition-colors group">
             <div>
               <div className="relative overflow-hidden rounded-2xl mb-5 shadow-2xl">
                 {item.posterPath ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img 
                     src={`https://image.tmdb.org/t/p/w500${item.posterPath}`} 
                     alt="poster" 
@@ -141,7 +150,6 @@ export default function EliteDashboard() {
                 Grab Release
               </button>
               
-              {/* DON'T FORGET TO ADD YOUR RADARR URL HERE 👇 */}
               <button 
                 onClick={() => window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=${encodeURIComponent(item.title)}`, '_blank')}
                 className="w-full py-3 bg-transparent text-gray-500 text-[9px] font-bold uppercase tracking-wider rounded-2xl border border-gray-900 hover:border-gray-700 hover:text-gray-300 transition-all"
@@ -153,10 +161,14 @@ export default function EliteDashboard() {
         ))}
       </div>
 
-      {/* --- TOAST NOTIFICATION --- */}
       {toast && (
         <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-2xl shadow-2xl font-bold text-sm z-50 transition-all animate-bounce ${
           toast.type === 'success' ? 'bg-green-500 text-black' : 'bg-red-600 text-white'
         }`}>
           {toast.message}
         </div>
+      )}
+
+    </div>
+  );
+}
