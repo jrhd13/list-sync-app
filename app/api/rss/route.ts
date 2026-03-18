@@ -2,81 +2,85 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const escapeXml = (unsafe: string) => {
-  return unsafe.replace(/[<>&"']/g, (c) => {
-    switch (c) {
-      case '<': return '&lt;'; case '>': return '&gt;';
-      case '&': return '&amp;'; case '"': return '&quot;';
-      case "'": return '&apos;'; default: return c;
-    }
-  });
-};
+// 1. This tells TypeScript what the NZBGeek/Planet data looks like
+interface RssItem {
+  title?: string;
+  link?: string;
+  [key: string]: unknown; // Allows for extra hidden data
+}
 
+// 2. TMDB Fetcher logic for your Dashboard posters and scores
 async function getTmdbMetadata(title: string, apiKey: string) {
   try {
     const clean = title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
     const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(clean)}`);
     const data = await res.json();
     const movie = data.results?.[0];
-    if (!movie) return { tmdbId: null, imdbId: null };
-    const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/external_ids?api_key=${apiKey}`);
-    const details = await detailRes.json();
-    return { tmdbId: movie.id, imdbId: details.imdb_id || null };
-  } catch { return { tmdbId: null, imdbId: null }; }
+    
+    if (!movie) return null;
+
+    return {
+      tmdbId: movie.id,
+      posterPath: movie.poster_path,
+      score: movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
   try {
-   // --- PASTE YOUR KEYS HERE ---
-const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
-const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
-const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df"; // <--- ADD THIS LINE
+    // 👇 3. PASTE YOUR ACTUAL KEYS HERE 👇
+    const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
+    const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
+    const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df";
 
-const endpoints = [
-      // 1. Geek Endorsed Movies (Curated by staff)
+    // All three feeds combined for maximum coverage
+    const endpoints = [
       `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      
-      // 2. NEW: Geek Rated Movies (Highly rated by the community)
       `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      
-      // 3. Your Personal NZBPlanet Feed
       `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
     ];
-    
+
+    // Fetch from all sources at once
     const results = await Promise.all(
       endpoints.map(url => fetch(url).then(res => res.json()).catch(() => ({})))
     );
 
-    const allItems = results.flatMap(data => data.channel?.item || []);
+    // Extract the items
+    const allItems: RssItem[] = results.flatMap(data => data.channel?.item || []);
     
-    // De-duplicate movies found on both sites
-    const uniqueData = Array.from(new Map(allItems.map(item => [item.title, item])).values()).slice(0, 50);
+    // De-duplicate movies so you don't see the same movie twice on your dashboard
+    const uniqueMap = new Map<string, RssItem>();
+    allItems.forEach(item => {
+      if (item.title) uniqueMap.set(item.title, item);
+    });
+    const uniqueData = Array.from(uniqueMap.values()).slice(0, 40); // Limit to 40 for speed
 
-    const feedItems = await Promise.all(uniqueData.map(async (item: any) => {
+    // Attach TMDB Posters and IDs to send to your UI
+    const feedItems = await Promise.all(uniqueData.map(async (item) => {
+      // TypeScript safety check
+      if (!item.title) return null; 
+      
       const meta = await getTmdbMetadata(item.title, TMDB_KEY);
-      return `
-        <item>
-          <title>${escapeXml(item.title)}</title>
-          <link>${escapeXml(item.link || '')}</link>
-          <description>Elite Super-Feed Release</description>
-          ${meta.tmdbId ? `<tmdbid>${meta.tmdbId}</tmdbid>` : ''}
-          ${meta.imdbId ? `<imdbid>${meta.imdbId}</imdbid>` : ''}
-          <pubDate>${item.pubDate || new Date().toUTCString()}</pubDate>
-          <guid isPermaLink="false">${escapeXml(item.guid?.['#text'] || item.guid || String(Math.random()))}</guid>
-        </item>`;
+      
+      return {
+        title: item.title,
+        link: item.link,
+        tmdbId: meta?.tmdbId || null,
+        posterPath: meta?.posterPath || null,
+        score: meta?.score || null,
+      };
     }));
 
-    const rssFeed = `<?xml version="1.0" encoding="UTF-8"?>
-    <rss version="2.0">
-      <channel>
-        <title>MediaFlow Super-Feed</title>
-        <description>Combined Geek Endorsed + Planet RSS</description>
-        ${feedItems.join('')}
-      </channel>
-    </rss>`;
+    // Remove any items that failed to load properly
+    const validItems = feedItems.filter(item => item !== null && item.tmdbId !== null);
 
-    return new NextResponse(rssFeed, { headers: { 'Content-Type': 'application/xml; charset=utf-8' } });
+    // Send perfectly clean data back to the Dashboard
+    return NextResponse.json(validItems);
+    
   } catch (error) {
-    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><error>Failed</error>', { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch elite list" }, { status: 500 });
   }
 }
