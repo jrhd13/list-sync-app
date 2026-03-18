@@ -36,7 +36,7 @@ export default function EliteDashboard() {
     
     const movieData = {
       title: cleanTitle,
-      qualityProfileId: 1, // Change to 4 or 6 if your Radarr uses a different ID
+      qualityProfileId: 10, // Change to 4 or 6 if your Radarr uses a different ID
       rootFolderPath: "/storage/symlinks/movies",
       tmdbId: item.tmdbId,
       year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
