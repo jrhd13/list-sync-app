@@ -25,30 +25,33 @@ export default function Dashboard() {
   useEffect(() => { loadData(); }, []);
 
   // --- THE ELFHOSTED GRABBER ---
-  const addToRadarr = async (item: any) => {
-    const RADARR_URL = "https://jrhd13-radarr.elfhosted.party"; 
-    const RADARR_API_KEY = "5c1b945af2e44b10ac5762f5580e1df3";
-
-    const movieData = {
-      title: item.title.split(/(\d{4})/)[0].replace(/\./g, ' '),
-      qualityProfileId: 1,
-      titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
-      tmdbId: 0,
-      year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
-      rootFolderPath: "/storage/realdebrid-zurg/movies",
-      monitored: true,
-      addOptions: { searchForMovie: true }
-    };
-
-    try {
-      const res = await fetch(`${RADARR_URL}/api/v3/movie?apiKey=${RADARR_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(movieData)
-      });
-      alert(res.ok ? "✅ Sent to ElfHosted Radarr!" : "❌ Error: Movie might already exist.");
-    } catch (err) { alert("⚠️ Connection failed. Check your Radarr URL."); }
+  // Find the addToRadarr function and replace it with this:
+const addToRadarr = async (item: any) => {
+  const movieData = {
+    title: item.title.split(/(\d{4})/)[0].replace(/\./g, ' '),
+    qualityProfileId: 1,
+    titleSlug: item.title.replace(/\s+/g, '-').toLowerCase(),
+    tmdbId: 0,
+    year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
+    rootFolderPath: "/storage/realdebrid-zurg/movies",
+    monitored: true,
+    addOptions: { searchForMovie: true }
   };
+
+  try {
+    const res = await fetch('/api/grab', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(movieData)
+    });
+    
+    const result = await res.json();
+    if (res.ok) alert("✅ Success! Sent to Radarr.");
+    else alert(`❌ Error: ${result.error}`);
+  } catch (err) {
+    alert("⚠️ Could not reach the internal Grab API.");
+  }
+};
 
   if (loading) return (
     <div className="min-h-screen bg-[#030712] flex items-center justify-center font-black text-[#4facfe] animate-pulse italic uppercase tracking-tighter">
