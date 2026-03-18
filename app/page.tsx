@@ -26,7 +26,7 @@ export default function Dashboard() {
 
   // --- THE ELFHOSTED GRABBER ---
   const addToRadarr = async (item: any) => {
-    const RADARR_URL = "https://jrhd13-radarr.elfhosted.party/"; 
+    const RADARR_URL = "https://jrhd13-radarr.elfhosted.party"; 
     const RADARR_API_KEY = "5c1b945af2e44b10ac5762f5580e1df3";
 
     const movieData = {
