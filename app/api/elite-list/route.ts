@@ -84,9 +84,9 @@ export async function GET() {
 
     // All three feeds combined for maximum coverage
     const endpoints = [
-      `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&apikey=${GEEK_KEY}&o=json`,
-      `https://nzbplanet.net/api?t=movie&limit=40&apikey=${PLANET_KEY}&o=json`
+      `https://api.nzbgeek.info/api?t=search&q=endorsed_movies&limit=40&extended=1&apikey=${GEEK_KEY}&o=json`,
+      `https://api.nzbgeek.info/api?t=search&q=geek_rated_movies&limit=40&extended=1&apikey=${GEEK_KEY}&o=json`,
+      `https://nzbplanet.net/api?t=movie&limit=40&extended=1&apikey=${PLANET_KEY}&o=json`
     ];
 
     // Fetch from all sources at once
