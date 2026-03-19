@@ -2,16 +2,36 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// 1. This tells TypeScript what the NZBGeek/Planet data looks like
+// 1. Tells TypeScript what to expect from the indexer's JSON
 interface RssItem {
   title?: string;
   link?: string;
-  [key: string]: unknown; // Allows for extra hidden data
+  imdb?: string;   // NZBGeek often sends this
+  imdbid?: string; // Planet sometimes uses this
+  [key: string]: any; // Allows for any other hidden data
 }
 
-// 2. TMDB Fetcher logic for your Dashboard posters and scores
-async function getTmdbMetadata(title: string, apiKey: string) {
+// 2. The Upgraded TMDB Fetcher (with Reverse IMDb Lookup)
+async function getTmdbMetadata(title: string, apiKey: string, imdbId?: string | null) {
   try {
+    // SCENARIO A: We have an IMDb ID from the feed (Bulletproof Match)
+    if (imdbId) {
+      // Ensure it has the 'tt' prefix TMDB expects
+      const formattedImdb = imdbId.startsWith('tt') ? imdbId : `tt${imdbId}`;
+      const findRes = await fetch(`https://api.themoviedb.org/3/find/${formattedImdb}?api_key=${apiKey}&external_source=imdb_id`);
+      const findData = await findRes.json();
+      
+      const movie = findData.movie_results?.[0];
+      if (movie) {
+        return {
+          tmdbId: movie.id,
+          posterPath: movie.poster_path,
+          score: movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'
+        };
+      }
+    }
+
+    // SCENARIO B: No IMDb ID found, fallback to Title Search (Safety Net)
     const clean = title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
     const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(clean)}`);
     const data = await res.json();
@@ -59,11 +79,15 @@ export async function GET() {
     const uniqueData = Array.from(uniqueMap.values()).slice(0, 40); // Limit to 40 for speed
 
     // Attach TMDB Posters and IDs to send to your UI
-    const feedItems = await Promise.all(uniqueData.map(async (item) => {
+    const feedItemsList = await Promise.all(uniqueData.map(async (item) => {
       // TypeScript safety check
       if (!item.title) return null; 
       
-      const meta = await getTmdbMetadata(item.title, TMDB_KEY);
+      // Look for the IMDb ID in Geek or Planet's format
+      const rawImdb = item.imdb || item.imdbid || null;
+      
+      // Pass it to our upgraded fetcher
+      const meta = await getTmdbMetadata(item.title, TMDB_KEY, rawImdb);
       
       return {
         title: item.title,
@@ -71,11 +95,12 @@ export async function GET() {
         tmdbId: meta?.tmdbId || null,
         posterPath: meta?.posterPath || null,
         score: meta?.score || null,
+        imdbId: rawImdb // Pass this to the frontend too!
       };
     }));
 
     // Remove any items that failed to load properly
-    const validItems = feedItems.filter(item => item !== null && item.tmdbId !== null);
+    const validItems = feedItemsList.filter(item => item !== null && item.tmdbId !== null);
 
     // Send perfectly clean data back to the Dashboard
     return NextResponse.json(validItems);
