@@ -1,12 +1,13 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
-// 👇 1. This tells TypeScript exactly what "item" is so it stops complaining 👇
+// 1. Bulletproof TypeScript Interface (Now with IMDb ID)
 interface MovieItem {
   title: string;
   tmdbId?: number;
   posterPath?: string;
-  score?: number;
+  score?: number | string;
+  imdbId?: string | null;
 }
 
 export default function EliteDashboard() {
@@ -39,7 +40,6 @@ export default function EliteDashboard() {
     fetchMovies();
   }, []);
 
-  // 👇 2. Replaced "any" with "MovieItem" here 👇
   const addToRadarr = async (item: MovieItem) => {
     const cleanTitle = item.title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
     
@@ -73,6 +73,7 @@ export default function EliteDashboard() {
     }
   };
 
+  // --- LOADING SKELETON UI ---
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white p-6 font-sans">
@@ -100,6 +101,7 @@ export default function EliteDashboard() {
     );
   }
 
+  // --- MAIN DASHBOARD UI ---
   return (
     <div className="min-h-screen bg-black text-white p-6 font-sans relative">
       
@@ -118,7 +120,6 @@ export default function EliteDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
-        {/* 👇 3. Used a safer key and added eslint-disable for the img tag 👇 */}
         {items.map((item, idx) => (
           <div key={`${item.tmdbId}-${idx}`} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between hover:border-gray-700 transition-colors group">
             <div>
@@ -133,13 +134,27 @@ export default function EliteDashboard() {
                 ) : (
                   <div className="w-full h-80 bg-gray-900 flex items-center justify-center text-gray-700 text-xs font-bold tracking-widest">NO POSTER</div>
                 )}
-                <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-bold text-blue-400">
-                  ⭐ {item.score || '0.0'}
+                
+                {/* Score & IMDb Badge */}
+                <div className="absolute top-3 right-3 flex gap-2">
+                  {item.imdbId && (
+                    <a 
+                      href={`https://www.imdb.com/title/${item.imdbId.startsWith('tt') ? item.imdbId : 'tt'+item.imdbId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="bg-[#f5c518] text-black px-2 py-1 rounded-full text-[9px] font-black tracking-wider hover:scale-110 transition-transform"
+                    >
+                      IMDb
+                    </a>
+                  )}
+                  <div className="bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-bold text-blue-400">
+                    ⭐ {item.score || '0.0'}
+                  </div>
                 </div>
               </div>
               
               <h3 className="text-sm font-bold leading-tight mb-1 truncate">{item.title}</h3>
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold italic">Endorsed Release</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold italic">Elite Curated</p>
             </div>
 
             <div className="flex flex-col gap-2 mt-6">
@@ -150,8 +165,14 @@ export default function EliteDashboard() {
                 Grab Release
               </button>
               
+              {/* DON'T FORGET TO ADD YOUR RADARR URL HERE 👇 */}
               <button 
-                onClick={() => window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=${encodeURIComponent(item.title)}`, '_blank')}
+                onClick={() => {
+                  const searchTerm = item.imdbId 
+                    ? (item.imdbId.startsWith('tt') ? item.imdbId : `tt${item.imdbId}`) 
+                    : encodeURIComponent(item.title);
+                  window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=${searchTerm}`, '_blank');
+                }}
                 className="w-full py-3 bg-transparent text-gray-500 text-[9px] font-bold uppercase tracking-wider rounded-2xl border border-gray-900 hover:border-gray-700 hover:text-gray-300 transition-all"
               >
                 🔍 Search Radarr
@@ -161,6 +182,7 @@ export default function EliteDashboard() {
         ))}
       </div>
 
+      {/* --- TOAST NOTIFICATION --- */}
       {toast && (
         <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-2xl shadow-2xl font-bold text-sm z-50 transition-all animate-bounce ${
           toast.type === 'success' ? 'bg-green-500 text-black' : 'bg-red-600 text-white'
