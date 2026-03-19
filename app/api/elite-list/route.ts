@@ -6,17 +6,43 @@ export const dynamic = 'force-dynamic';
 interface RssItem {
   title?: string;
   link?: string;
-  imdb?: string;   // NZBGeek often sends this
-  imdbid?: string; // Planet sometimes uses this
-  [key: string]: any; // Allows for any other hidden data
+  imdb?: string;   
+  imdbid?: string; 
+  attr?: any[];
+  'newznab:attr'?: any[];
+  attributes?: any[];
+  [key: string]: any; 
 }
 
-// 2. The Upgraded TMDB Fetcher (with Reverse IMDb Lookup)
+// 2. Helper to dig into NZBGeek/Planet's hidden attributes array
+function extractImdbId(item: RssItem): string | null {
+  // Check the surface first
+  if (item.imdb) return String(item.imdb);
+  if (item.imdbid) return String(item.imdbid);
+
+  // Dig into the hidden attributes array
+  const attributes = item.attr || item['newznab:attr'] || item.attributes;
+  
+  if (Array.isArray(attributes)) {
+    for (const attr of attributes) {
+      // Geek format: { "@attributes": { "name": "imdb", "value": "1234567" } }
+      if (attr?.['@attributes']?.name === 'imdb' && attr?.['@attributes']?.value) {
+        return String(attr['@attributes'].value);
+      }
+      // Planet format: { "name": "imdb", "value": "1234567" }
+      if (attr?.name === 'imdb' && attr?.value) {
+        return String(attr.value);
+      }
+    }
+  }
+  return null;
+}
+
+// 3. The Upgraded TMDB Fetcher (with Reverse IMDb Lookup)
 async function getTmdbMetadata(title: string, apiKey: string, imdbId?: string | null) {
   try {
     // SCENARIO A: We have an IMDb ID from the feed (Bulletproof Match)
     if (imdbId) {
-      // Ensure it has the 'tt' prefix TMDB expects
       const formattedImdb = imdbId.startsWith('tt') ? imdbId : `tt${imdbId}`;
       const findRes = await fetch(`https://api.themoviedb.org/3/find/${formattedImdb}?api_key=${apiKey}&external_source=imdb_id`);
       const findData = await findRes.json();
@@ -51,7 +77,7 @@ async function getTmdbMetadata(title: string, apiKey: string, imdbId?: string | 
 
 export async function GET() {
   try {
-    // 👇 3. PASTE YOUR ACTUAL KEYS HERE 👇
+    // 👇 4. PASTE YOUR ACTUAL KEYS HERE 👇
     const TMDB_KEY = "45fd2f0e1df91fb5378987631492b06e";
     const GEEK_KEY = "eNVCFTpk9jMgvcBFdz5UZftlfjtucdTV";
     const PLANET_KEY = "618518524733b41d3487ca5a8d7a29df";
@@ -83,8 +109,8 @@ export async function GET() {
       // TypeScript safety check
       if (!item.title) return null; 
       
-      // Look for the IMDb ID in Geek or Planet's format
-      const rawImdb = item.imdb || item.imdbid || null;
+      // Use our new decoder to dig out the hidden IMDb ID
+      const rawImdb = extractImdbId(item);
       
       // Pass it to our upgraded fetcher
       const meta = await getTmdbMetadata(item.title, TMDB_KEY, rawImdb);
