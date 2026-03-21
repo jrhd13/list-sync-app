@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // 1. Ask Sonarr to "Lookup" the TMDB ID so it can gather the TVDB ID and proper formatting
-    const lookupRes = await fetch(`${SONARR_URL}/api/v3/series/lookup?term=tvdb:${body.tmdbId}`, {
+    const lookupRes = await fetch(`${SONARR_URL}/api/v3/series/lookup?term=tmdb:${body.tmdbId}`, {
       headers: { 'X-Api-Key': SONARR_KEY }
     });
     const lookupData = await lookupRes.json();

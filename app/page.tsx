@@ -179,7 +179,7 @@ export default function EliteDashboard() {
                     if (mediaType === 'movie') {
                       window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=tmdb:${item.tmdbId}`, '_blank');
                     } else {
-                      window.open(`https://jrhd13-sonarr.elfhosted.party/add/new?term=tvdb:${item.tmdbId}`, '_blank');
+                      window.open(`https://jrhd13-sonarr.elfhosted.party/add/new?term=tmdb:${item.tmdbId}`, '_blank');
                     }
                   }}
                   className="w-full py-3 bg-transparent text-gray-500 text-[9px] font-bold uppercase tracking-wider rounded-2xl border border-gray-900 hover:border-gray-700 hover:text-gray-300 transition-all"
