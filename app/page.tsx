@@ -61,8 +61,8 @@ export default function EliteDashboard() {
     const cleanTitle = item.title.replace(/\./g, ' ').trim();
     const endpoint = mediaType === 'movie' ? '/api/grab' : '/api/sonarr';
     
-    // Radarr uses "movies", Sonarr uses "tv"
-    const rootFolder = mediaType === 'movie' ? "/storage/symlinks/movies" : "/storage/symlinks/tv";
+    // Radarr uses "movies", Sonarr uses "series"
+    const rootFolder = mediaType === 'movie' ? "/storage/symlinks/movies" : "/storage/symlinks/series";
 // Set your specific Radarr and Sonarr Profile IDs here!
     const radarrProfileId = 10; // Change this to your "non Transcoding 1080p" ID
     const sonarrProfileId = 10; // Change this to your preferred Sonarr Profile ID
