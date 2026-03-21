@@ -26,10 +26,10 @@ export async function GET(request: Request) {
       const genreId = filter.split('-')[1];
       url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=popularity.desc&vote_count.gte=100`;
     } 
-    // SCENARIO B: Streaming Service Clicked
+    // SCENARIO B: Streaming Service Clicked (Time filters removed for UK Terrestrial platforms!)
     else if (filter.startsWith('provider-')) {
       const providerId = filter.split('-')[1];
-      url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&with_watch_providers=${providerId}&watch_region=GB&sort_by=popularity.desc&${dateParam}.gte=${threeMonthsAgo}&${dateParam}.lte=${today}`;
+      url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&with_watch_providers=${providerId}&watch_region=GB&sort_by=popularity.desc`;
     }
 
     // Fetch Page 1 and 2
