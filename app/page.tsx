@@ -65,7 +65,7 @@ export default function EliteDashboard() {
     const rootFolder = mediaType === 'movie' ? "/storage/symlinks/movies" : "/storage/symlinks/tv";
 // Set your specific Radarr and Sonarr Profile IDs here!
     const radarrProfileId = 10; // Change this to your "non Transcoding 1080p" ID
-    const sonarrProfileId = 0; // Change this to your preferred Sonarr Profile ID
+    const sonarrProfileId = 10; // Change this to your preferred Sonarr Profile ID
 
     const payload = {
       title: cleanTitle,
