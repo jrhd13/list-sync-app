@@ -15,15 +15,21 @@ const CATEGORIES = [
   { id: 'genre-35', name: '😂 Comedy' },
   { id: 'genre-10751', name: '👨‍👩‍👧 Family' },
   { id: 'genre-16', name: '🎨 Animation' },
+  
+  // US / Global Streaming (Fixed Prime & HBO!)
   { id: 'provider-8', name: '🔴 Netflix' },
   { id: 'provider-337', name: '🏰 Disney+' },
-  { id: 'provider-119', name: '📦 Prime' },
-  { id: 'provider-33', name: '📺 Max / HBO' },
-  { id: 'provider-38', name: '🇬🇧 BBC iPlayer' },
-  { id: 'provider-299', name: '📺 ITVX' },
-  { id: 'provider-39', name: '⚡ NOW' },
-  { id: 'provider-380', name: '🇬🇧 BritBox' },
-  { id: 'provider-212', name: '📺 U&Dave' } 
+  { id: 'provider-9', name: '📦 Prime' },         // Fixed: ID 9 is Prime Streaming
+  { id: 'network-49', name: '📺 Max / HBO' },     // Fixed: Bypasses the UK Max launch delay!
+  
+  // UK Platforms
+  { id: 'provider-38', name: '🇬🇧 BBC iPlayer' }, 
+  { id: 'provider-39', name: '⚡ NOW' },          
+  
+  // The UK "Network Bypass" platforms
+  { id: 'network-24', name: '📺 ITVX' },         
+  { id: 'network-388', name: '📺 U&Dave' },      
+  { id: 'network-26', name: '🇬🇧 Channel 4' }     
 ];
 
 export default function EliteDashboard() {

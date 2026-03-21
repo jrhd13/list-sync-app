@@ -13,26 +13,26 @@ export async function GET(request: Request) {
     const type = searchParams.get('type') || 'movie'; // 'movie' or 'tv'
 
     let url = '';
-    
-    // Dates for the "What's New" calculations (last 3 months)
-    const today = new Date().toISOString().split('T')[0];
-    const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
-    // TMDB uses different date filters for Movies vs TV
-    const dateParam = type === 'movie' ? 'primary_release_date' : 'first_air_date';
+    const baseUrl = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&sort_by=popularity.desc`;
 
     // SCENARIO A: Genre Clicked
     if (filter.startsWith('genre-')) {
       const genreId = filter.split('-')[1];
-      url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&with_genres=${genreId}&sort_by=popularity.desc&vote_count.gte=100`;
+      url = `${baseUrl}&with_genres=${genreId}&vote_count.gte=100`;
     } 
-    // SCENARIO B: Streaming Service Clicked (Time filters removed for UK Terrestrial platforms!)
+    // SCENARIO B: Streaming Service Clicked (Netflix, Prime, iPlayer, NOW)
     else if (filter.startsWith('provider-')) {
       const providerId = filter.split('-')[1];
-      url = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_KEY}&with_watch_providers=${providerId}&watch_region=GB&sort_by=popularity.desc`;
+      // watch_region=GB ensures we see what's actually on UK Netflix/Prime
+      url = `${baseUrl}&with_watch_providers=${providerId}&watch_region=GB`;
+    }
+    // SCENARIO C: The UK Network Bypass (ITVX, U&Dave, Channel 4)
+    else if (filter.startsWith('network-')) {
+      const networkId = filter.split('-')[1];
+      url = `${baseUrl}&with_networks=${networkId}`;
     }
 
-    // Fetch Page 1 and 2
+    // Fetch Page 1 and 2 simultaneously (TMDB limits to 20 per page, this gets us 40)
     const [res1, res2] = await Promise.all([
       fetch(`${url}&page=1`).then(res => res.json()),
       fetch(`${url}&page=2`).then(res => res.json())
@@ -40,7 +40,8 @@ export async function GET(request: Request) {
 
     const allResults = [...(res1.results || []), ...(res2.results || [])];
 
-    // Format the data (TMDB uses 'title' for movies, but 'name' for TV!)
+    // Format the data perfectly for your frontend 
+    // (TMDB uses 'title' for movies, but 'name' for TV!)
     const feedItems = allResults.map((item: any) => ({
       title: item.title || item.name, 
       tmdbId: item.id,
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
     return NextResponse.json(feedItems);
     
   } catch (error) {
+    console.error("TMDB Fetch Error:", error);
     return NextResponse.json({ error: "Failed to fetch TMDB data" }, { status: 500 });
   }
 }
