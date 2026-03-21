@@ -1,188 +1,191 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
-// 1. Bulletproof TypeScript Interface (Now with IMDb ID)
-interface MovieItem {
+interface MediaItem {
   title: string;
   tmdbId?: number;
   posterPath?: string;
   score?: number | string;
-  imdbId?: string | null;
 }
 
+const CATEGORIES = [
+  { id: 'genre-27', name: '🔪 Horror' },
+  { id: 'genre-878', name: '🛸 Sci-Fi' },
+  { id: 'genre-28', name: '💥 Action' },
+  { id: 'genre-35', name: '😂 Comedy' },
+  { id: 'genre-10751', name: '👨‍👩‍👧 Family' },
+  { id: 'genre-16', name: '🎨 Animation' },
+  { id: 'provider-8', name: '🔴 Netflix' },
+  { id: 'provider-337', name: '🏰 Disney+' },
+  { id: 'provider-119', name: '📦 Prime' },
+  { id: 'provider-33', name: '📺 Max / HBO' },
+  { id: 'provider-38', name: '🇬🇧 BBC iPlayer' },
+  { id: 'provider-299', name: '📺 ITVX' },
+  { id: 'provider-39', name: '⚡ NOW' },
+  { id: 'provider-380', name: '🇬🇧 BritBox' },
+  { id: 'provider-212', name: '📺 U&Dave' } 
+];
+
 export default function EliteDashboard() {
-  const [items, setItems] = useState<MovieItem[]>([]);
+  const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id);
+  const [mediaType, setMediaType] = useState<'movie' | 'tv'>('movie'); // The new Toggle State!
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
-  const fetchMovies = async () => {
+  const fetchMedia = async (categoryId: string, type: string) => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/elite-list');
+      const res = await fetch(`/api/elite-list?filter=${categoryId}&type=${type}`);
       const data = await res.json();
       setItems(data);
     } catch (err) {
-      console.error("Failed to load movies");
-      setToast({ message: "❌ Failed to load movies from API", type: 'error' });
+      setToast({ message: "❌ Failed to load from TMDB", type: 'error' });
       setTimeout(() => setToast(null), 3000);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchMovies();
-    setIsRefreshing(false);
-  };
-
   useEffect(() => {
-    fetchMovies();
-  }, []);
+    fetchMedia(activeCategory, mediaType);
+  }, [activeCategory, mediaType]);
 
-  const addToRadarr = async (item: MovieItem) => {
-    const cleanTitle = item.title.split(/(\d{4})|1080p|720p|2160p/i)[0].replace(/\./g, ' ').trim();
+  const addToArr = async (item: MediaItem) => {
+    const cleanTitle = item.title.replace(/\./g, ' ').trim();
+    const endpoint = mediaType === 'movie' ? '/api/grab' : '/api/sonarr';
     
-    const movieData = {
+    // Radarr uses "movies", Sonarr uses "tv"
+    const rootFolder = mediaType === 'movie' ? "/storage/symlinks/movies" : "/storage/symlinks/tv";
+// Set your specific Radarr and Sonarr Profile IDs here!
+    const radarrProfileId = 10; // Change this to your "non Transcoding 1080p" ID
+    const sonarrProfileId = 0; // Change this to your preferred Sonarr Profile ID
+
+    const payload = {
       title: cleanTitle,
-      qualityProfileId: 10, // Change to 4 or 6 if your Radarr uses a different ID
-      rootFolderPath: "/storage/symlinks/movies",
+      qualityProfileId: mediaType === 'movie' ? radarrProfileId : sonarrProfileId, 
+      rootFolderPath: rootFolder,
       tmdbId: item.tmdbId || 0,
-      year: parseInt(item.title.match(/\d{4}/)?.[0] || "2024"),
+      year: 2024,
       monitored: true,
-      addOptions: { searchForMovie: true }
+      addOptions: mediaType === 'movie' ? { searchForMovie: true } : undefined
     };
 
     try {
-      const res = await fetch('/api/grab', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(movieData)
+        body: JSON.stringify(payload)
       });
       
       if (res.ok) {
-        setToast({ message: `✅ ${cleanTitle} added to Radarr!`, type: 'success' });
+        setToast({ message: `✅ ${cleanTitle} added to ${mediaType === 'movie' ? 'Radarr' : 'Sonarr'}!`, type: 'success' });
       } else {
         const result = await res.json();
         setToast({ message: `❌ Error: ${result.error}`, type: 'error' });
       }
     } catch (err) {
-      setToast({ message: "⚠️ Connection error to Radarr API.", type: 'error' });
+      setToast({ message: "⚠️ Connection error.", type: 'error' });
     } finally {
       setTimeout(() => setToast(null), 3000);
     }
   };
 
-  // --- LOADING SKELETON UI ---
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-white p-6 font-sans">
-        <div className="flex flex-col items-center justify-center mb-12 gap-6 mt-4">
-          <div className="h-10 w-64 bg-gray-800 rounded-lg animate-pulse"></div>
-          <div className="h-10 w-40 bg-gray-900 rounded-full border border-gray-800 animate-pulse"></div>
-        </div>
+  return (
+    <div className="min-h-screen bg-black text-white p-6 font-sans relative">
+      
+      <div className="flex flex-col items-center justify-center mb-8 gap-4">
+        <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent italic">
+          MEDIAFLOW ELITE
+        </h1>
 
+        {/* --- NEW TOGGLE SWITCH --- */}
+        <div className="flex bg-gray-900 rounded-full p-1 border border-gray-800 shadow-xl mb-2">
+          <button 
+            onClick={() => setMediaType('movie')}
+            className={`px-8 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${mediaType === 'movie' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+          >
+            🎬 Movies
+          </button>
+          <button 
+            onClick={() => setMediaType('tv')}
+            className={`px-8 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${mediaType === 'tv' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+          >
+            📺 TV Shows
+          </button>
+        </div>
+        
+        <div className="flex flex-wrap justify-center gap-2 max-w-4xl mx-auto mt-2">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all border ${
+                activeCategory === cat.id 
+                  ? 'bg-gray-800 border-gray-500 text-white' 
+                  : 'bg-[#0a0a0a] border-gray-800 text-gray-500 hover:border-gray-600 hover:text-white'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between">
+          {items.map((item, idx) => (
+            <div key={`${item.tmdbId}-${idx}`} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between hover:border-gray-700 transition-colors group">
               <div>
-                <div className="w-full h-80 bg-gray-800 rounded-2xl mb-5 animate-pulse"></div>
-                <div className="h-4 w-3/4 bg-gray-800 rounded mb-3 animate-pulse"></div>
-                <div className="h-3 w-1/2 bg-gray-900 rounded animate-pulse"></div>
+                <div className="relative overflow-hidden rounded-2xl mb-5 shadow-2xl">
+                  {item.posterPath ? (
+                    <img 
+                      src={`https://image.tmdb.org/t/p/w500${item.posterPath}`} 
+                      alt="poster" 
+                      className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-80 bg-gray-900 flex items-center justify-center text-gray-700 text-xs font-bold tracking-widest">NO POSTER</div>
+                  )}
+                  <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-bold text-blue-400">
+                    ⭐ {item.score || '0.0'}
+                  </div>
+                </div>
+                
+                <h3 className="text-sm font-bold leading-tight mb-1 truncate">{item.title}</h3>
               </div>
+
               <div className="flex flex-col gap-2 mt-6">
-                <div className="h-12 w-full bg-gray-800 rounded-2xl animate-pulse"></div>
-                <div className="h-10 w-full bg-gray-900 rounded-2xl animate-pulse"></div>
+                <button 
+                  onClick={() => addToArr(item)}
+                  className={`w-full py-4 text-white text-[11px] font-black uppercase rounded-2xl transition-all shadow-lg active:scale-[0.98] ${mediaType === 'movie' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-purple-600 hover:bg-purple-500'}`}
+                >
+                  Grab {mediaType === 'movie' ? 'Movie' : 'Series'}
+                </button>
+                
+                {/* DON'T FORGET YOUR URLs 👇 */}
+                <button 
+                  onClick={() => {
+                    if (mediaType === 'movie') {
+                      window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=tmdb:${item.tmdbId}`, '_blank');
+                    } else {
+                      window.open(`https://jrhd13-sonarr.elfhosted.party/add/new?term=tvdb:${item.tmdbId}`, '_blank');
+                    }
+                  }}
+                  className="w-full py-3 bg-transparent text-gray-500 text-[9px] font-bold uppercase tracking-wider rounded-2xl border border-gray-900 hover:border-gray-700 hover:text-gray-300 transition-all"
+                >
+                  🔍 Search {mediaType === 'movie' ? 'Radarr' : 'Sonarr'}
+                </button>
               </div>
             </div>
           ))}
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // --- MAIN DASHBOARD UI ---
-  return (
-    <div className="min-h-screen bg-black text-white p-6 font-sans relative">
-      
-      <div className="flex flex-col items-center justify-center mb-12 gap-6">
-        <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent italic">
-          MEDIAFLOW ELITE
-        </h1>
-        
-        <button 
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className={`px-8 py-3 rounded-full border border-gray-800 bg-gray-950 text-[10px] font-bold uppercase tracking-[0.2em] transition-all hover:border-blue-500 hover:text-blue-400 active:scale-95 ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {isRefreshing ? '🔄 Syncing Feeds...' : '🔄 Refresh List'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
-        {items.map((item, idx) => (
-          <div key={`${item.tmdbId}-${idx}`} className="bg-[#0a0a0a] rounded-[2rem] p-5 border border-gray-900 flex flex-col justify-between hover:border-gray-700 transition-colors group">
-            <div>
-              <div className="relative overflow-hidden rounded-2xl mb-5 shadow-2xl">
-                {item.posterPath ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img 
-                    src={`https://image.tmdb.org/t/p/w500${item.posterPath}`} 
-                    alt="poster" 
-                    className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-80 bg-gray-900 flex items-center justify-center text-gray-700 text-xs font-bold tracking-widest">NO POSTER</div>
-                )}
-                
-                {/* Score & IMDb Badge */}
-                <div className="absolute top-3 right-3 flex gap-2">
-                  {item.imdbId && (
-                    <a 
-                      href={`https://www.imdb.com/title/${item.imdbId.startsWith('tt') ? item.imdbId : 'tt'+item.imdbId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="bg-[#f5c518] text-black px-2 py-1 rounded-full text-[9px] font-black tracking-wider hover:scale-110 transition-transform"
-                    >
-                      IMDb
-                    </a>
-                  )}
-                  <div className="bg-black/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-[10px] font-bold text-blue-400">
-                    ⭐ {item.score || '0.0'}
-                  </div>
-                </div>
-              </div>
-              
-              <h3 className="text-sm font-bold leading-tight mb-1 truncate">{item.title}</h3>
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold italic">Elite Curated</p>
-            </div>
-
-            <div className="flex flex-col gap-2 mt-6">
-              <button 
-                onClick={() => addToRadarr(item)}
-                className="w-full py-4 bg-white text-black text-[11px] font-black uppercase rounded-2xl hover:bg-blue-500 hover:text-white transition-all shadow-lg active:scale-[0.98]"
-              >
-                Grab Release
-              </button>
-              
-              {/* DON'T FORGET TO ADD YOUR RADARR URL HERE 👇 */}
-              <button 
-                onClick={() => {
-                  const searchTerm = item.imdbId 
-                    ? (item.imdbId.startsWith('tt') ? item.imdbId : `tt${item.imdbId}`) 
-                    : encodeURIComponent(item.title);
-                  window.open(`https://jrhd13-radarr.elfhosted.party/add/new?term=${searchTerm}`, '_blank');
-                }}
-                className="w-full py-3 bg-transparent text-gray-500 text-[9px] font-bold uppercase tracking-wider rounded-2xl border border-gray-900 hover:border-gray-700 hover:text-gray-300 transition-all"
-              >
-                🔍 Search Radarr
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* --- TOAST NOTIFICATION --- */}
       {toast && (
         <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-2xl shadow-2xl font-bold text-sm z-50 transition-all animate-bounce ${
           toast.type === 'success' ? 'bg-green-500 text-black' : 'bg-red-600 text-white'
